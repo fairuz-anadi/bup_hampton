@@ -1,12 +1,15 @@
 """Tests for Policy Gauntlet Replay Runner and Scoreboard."""
 
+from pathlib import Path
+
 from gauntlet.runner import PolicyGauntletRunner
 from gauntlet.scoreboard import Scoreboard
 
 
 def test_policy_gauntlet_evaluation():
     runner = PolicyGauntletRunner()
-    res = runner.evaluate_scenario("/Users/turjo/Desktop/bup_hampton/gauntlet/scenarios/01_normal_operations.yaml")
+    scenario_path = Path(__file__).resolve().parent.parent / "gauntlet" / "scenarios" / "01_normal_operations.yaml"
+    res = runner.evaluate_scenario(str(scenario_path))
     assert res["scenario_id"] == "scenario-01-normal"
     assert res["passed"] is True
     assert "metrics" in res

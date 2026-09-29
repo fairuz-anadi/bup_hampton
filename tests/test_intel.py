@@ -1,8 +1,7 @@
 """Tests for Decision Intelligence (Detection, Risk, LP, Greedy, Decision Twin)."""
 
 import pytest
-
-from backend.app.contracts import (
+from app.contracts import (
     Depot,
     DepotStatus,
     FuelType,
@@ -12,7 +11,7 @@ from backend.app.contracts import (
     Station,
     StationStatus,
 )
-from backend.app.intel import (
+from app.intel import (
     DetectionEngine,
     GreedyPolicy,
     IntelligenceService,
@@ -44,8 +43,14 @@ def sample_snapshot():
         ),
     }
     routes = {
-        "route-gazipur-mirpur": Route(id="route-gazipur-mirpur", depot_id="depot-gazipur", station_id="station-mirpur", transit_ticks=2, max_shipment=7000, status=RouteStatus.AVAILABLE),
-        "route-gazipur-tongi": Route(id="route-gazipur-tongi", depot_id="depot-gazipur", station_id="station-tongi", transit_ticks=2, max_shipment=6500, status=RouteStatus.AVAILABLE),
+        "route-gazipur-mirpur": Route(
+            id="route-gazipur-mirpur", depot_id="depot-gazipur", station_id="station-mirpur",
+            transit_ticks=2, max_shipment=7000, status=RouteStatus.AVAILABLE
+        ),
+        "route-gazipur-tongi": Route(
+            id="route-gazipur-tongi", depot_id="depot-gazipur", station_id="station-tongi",
+            transit_ticks=2, max_shipment=6500, status=RouteStatus.AVAILABLE
+        ),
     }
     return NetworkSnapshot(
         tick=50, sim_time="Day 1, 12:30", status="RUNNING",

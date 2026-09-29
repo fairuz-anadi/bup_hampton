@@ -5,7 +5,7 @@ Unified interface for LangGraph explanation copilot and DecisionRecord generatio
 
 from typing import Any
 
-from backend.app.contracts import (
+from app.contracts import (
     AutonomyMode,
     DecisionRecord,
     ExplainResponse,
@@ -14,7 +14,7 @@ from backend.app.contracts import (
     RouteStatus,
     StationStatus,
 )
-from backend.app.copilot.graph import build_copilot_graph
+from app.copilot.graph import build_copilot_graph
 
 
 class CopilotService:

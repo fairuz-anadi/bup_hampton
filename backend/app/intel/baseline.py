@@ -1,5 +1,7 @@
 """
-Forecaster v1: Baseline + Diurnal Profile + EWMA Residual Tracking (fc-v1)
+FuelGuard In-Process Baseline Forecaster & Fallback Predictor (backend/app/intel/baseline.py)
+Implements Forecaster v1: Baseline diurnal profiles, EWMA residual tracking,
+and regional demand multipliers (Chattogram 1.08x).
 Conforms to BUP Fuel Supply Simulator Integration Guide (§8.5, §8.6).
 """
 
@@ -8,12 +10,9 @@ from __future__ import annotations
 import math
 from typing import Any
 
-try:
-    from app.contracts import ForecastBand, ForecastResponse, FuelType
-except ImportError:
-    from backend.app.contracts import ForecastBand, ForecastResponse, FuelType
+from app.contracts import ForecastBand, ForecastResponse, FuelType
 
-PROFILES = {
+PROFILES: dict[str, dict[str, float]] = {
     "urban_high": {
         "DIESEL": 8500.0,
         "PETROL": 10500.0,
@@ -40,21 +39,22 @@ PROFILES = {
     },
 }
 
-STATION_PROFILES = {
+STATION_PROFILES: dict[str, str] = {
     "station-mirpur": "urban_high",
     "station-tongi": "industrial",
     "station-karnaphuli": "highway",
     "station-coxsbazar": "regional",
 }
 
-STATION_REGIONS = {
+STATION_REGIONS: dict[str, str] = {
     "station-mirpur": "region-dhaka",
     "station-tongi": "region-dhaka",
     "station-karnaphuli": "region-chattogram",
     "station-coxsbazar": "region-chattogram",
 }
 
-REGION_FACTORS = {
+# Regional demand factors per §8.5: Chattogram Division has a 1.08x factor
+REGION_FACTORS: dict[str, float] = {
     "region-dhaka": 1.0,
     "region-chattogram": 1.08,
 }
@@ -87,7 +87,7 @@ class BaselineForecaster:
     """
     Forecaster v1: Combines the known simulator base rate, diurnal hour-of-day
     profile, regional factor (Chattogram 1.08x), current demand multiplier,
-    and EWMA online residual tracking.
+    and online EWMA residual tracking over recent demand observations.
     """
 
     def __init__(self, ewma_alpha: float = 0.2):
@@ -122,13 +122,13 @@ class BaselineForecaster:
         profile = STATION_PROFILES.get(station_id, "urban_high")
         prof_noise = PROFILES[profile]["noise"]
 
-        # Online EWMA residual tracking if history exists
+        # Online EWMA residual tracking on station/fuel filtered history
         residual_bias = 0.0
         residual_variance = 0.0
 
         if demand_history:
-            # 1. Filter by station and fuel (support demand_liters and fuel_type)
-            filtered = []
+            # 1. Filter by station and fuel (support both 'demand_liters' and 'fuel_type')
+            filtered: list[dict[str, Any]] = []
             for item in demand_history:
                 s_match = item.get("station_id") == station_id
                 f_raw = item.get("fuel_type", item.get("fuel"))
@@ -136,12 +136,12 @@ class BaselineForecaster:
                 if s_match and f_val == fuel.value:
                     filtered.append(item)
 
-            # 2. Sort chronologically by tick ascending (since backend history is newest-first)
+            # 2. Sort chronologically by tick ascending (simulator/backend history is newest-first)
             filtered.sort(key=lambda x: x.get("tick", 0))
-            recent = filtered[-20:]
+            recent_entries = filtered[-20:]  # most recent 20 observations for this station/fuel
 
             residuals = []
-            for item in recent:
+            for item in recent_entries:
                 t = item.get("tick", 0)
                 actual = float(item.get("demand_liters", item.get("demand", item.get("quantity", 0.0))))
                 expected = self.compute_base_demand_for_tick(
@@ -179,12 +179,14 @@ class BaselineForecaster:
             p10 = max(0.0, mean_pred - 1.28 * horizon_sigma)
             p90 = mean_pred + 1.28 * horizon_sigma
 
-            bands.append(ForecastBand(
-                tick=future_tick,
-                mean=round(mean_pred, 1),
-                p10=round(p10, 1),
-                p90=round(p90, 1),
-            ))
+            bands.append(
+                ForecastBand(
+                    tick=future_tick,
+                    mean=round(mean_pred, 1),
+                    p10=round(p10, 1),
+                    p90=round(p90, 1),
+                )
+            )
 
         return ForecastResponse(
             station_id=station_id,
@@ -193,4 +195,30 @@ class BaselineForecaster:
             bands=bands,
             residual_sigma=round(sigma, 2),
             model_version=self.version,
+            fallback=True,
         )
+
+
+_DEFAULT_BASELINE = BaselineForecaster()
+
+
+def fallback_predict(
+    station_id: str,
+    fuel: FuelType,
+    horizon_ticks: int = 24,
+    current_tick: int = 0,
+    demand_history: list[dict[str, Any]] | None = None,
+    demand_multiplier: float = 1.0,
+) -> ForecastResponse:
+    """
+    In-process baseline forecaster fallback. Runs entirely within the backend process
+    with zero external HTTP calls, providing reliable degradation when forecaster service is offline.
+    """
+    return _DEFAULT_BASELINE.predict(
+        station_id=station_id,
+        fuel=fuel,
+        horizon_ticks=horizon_ticks,
+        current_tick=current_tick,
+        demand_history=demand_history,
+        demand_multiplier=demand_multiplier,
+    )

@@ -1,6 +1,7 @@
 """Tests for Forecaster Service (fc-v1, fc-v2, and Registry)."""
 
-from backend.app.contracts import ForecastRequest, FuelType
+from app.contracts import ForecastRequest, FuelType
+
 from forecaster.models.baseline import BaselineForecaster, get_hour_factor
 from forecaster.models.lgbm_quantile import LGBMQuantileForecaster
 from forecaster.registry import ModelRegistry, fallback_predict

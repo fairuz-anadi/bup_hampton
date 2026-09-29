@@ -4,8 +4,9 @@ Deterministic, dependency-free rule-based dispatcher.
 Acts as P0 fallback and counterfactual benchmark in the Policy Gauntlet.
 """
 
+from __future__ import annotations
 
-from backend.app.contracts import (
+from app.contracts import (
     AllocationLeg,
     DepotStatus,
     FuelType,
@@ -28,16 +29,27 @@ class GreedyPolicy:
     ) -> list[AllocationLeg]:
         legs: list[AllocationLeg] = []
 
+        # Find disrupted routes (current or scheduled for next tick)
+        disrupted_route_ids = {
+            r.id for r in snapshot.route_map.values() if r.status != RouteStatus.AVAILABLE
+        }
+        for ev in snapshot.events:
+            if ev.type == "route_disruption" and ev.status != "RESOLVED":
+                if ev.start_tick <= snapshot.tick + 1 and ev.end_tick > snapshot.tick:
+                    r_ids = ev.parameters.get("route_ids") or list(snapshot.route_map.keys())
+                    disrupted_route_ids.update(r_ids)
+
         # Track remaining depot capacities and available dispatch in this decision step
         depot_stock: dict[tuple[str, str], float] = {}
         depot_reserves: dict[tuple[str, str], float] = {}
         dispatch_left: dict[str, float] = {}
 
         for d_id, depot in snapshot.depot_map.items():
+            already_dispatched = snapshot.dispatched_this_tick.get(d_id, 0.0)
             if depot.status == DepotStatus.CLOSED:
                 dispatch_left[d_id] = 0.0
             else:
-                dispatch_left[d_id] = depot.dispatch_capacity_per_tick
+                dispatch_left[d_id] = max(0.0, depot.dispatch_capacity_per_tick - already_dispatched)
 
             for fuel_str, amt in depot.inventory.items():
                 cap = depot.capacity.get(fuel_str, 100000.0)
@@ -81,10 +93,10 @@ class GreedyPolicy:
             if headroom <= 100.0:
                 continue
 
-            # Find matching available routes connecting any depot to this station
+            # Find matching available routes connecting any depot to this station (excluding scheduled disruptions)
             matching_routes = [
                 r for r in snapshot.route_map.values()
-                if r.station_id == s_id and r.status == RouteStatus.AVAILABLE
+                if r.station_id == s_id and r.id not in disrupted_route_ids
             ]
             # Prefer fastest route (least transit_ticks)
             matching_routes.sort(key=lambda r: r.transit_ticks)

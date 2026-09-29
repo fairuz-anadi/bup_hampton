@@ -5,7 +5,7 @@ whenever LLM/network is unavailable or rate-limited.
 """
 
 
-from backend.app.contracts import ExplainResponse, NetworkSnapshot, Recommendation
+from app.contracts import ExplainResponse, NetworkSnapshot, Recommendation
 
 
 class DeterministicCopilot:

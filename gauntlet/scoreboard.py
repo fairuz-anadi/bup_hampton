@@ -20,17 +20,38 @@ class Scoreboard:
 
         verdict = "PASSED" if passed else "REGRESSED"
 
+        sl_row = (
+            f"| **Service Level** | {noop.get('service_level', 0.0):.3f} | "
+            f"{base.get('service_level', 0.0):.3f} | {cand.get('service_level', 0.0):.3f} | "
+            f"{deltas.get('service_level_delta', 0.0):+.3f} pp | >= -0.005 pp |"
+        )
+        unmet_row = (
+            f"| **Unmet Demand (L)** | {noop.get('unmet_demand_liters', 0.0):,.0f} L | "
+            f"{base.get('unmet_demand_liters', 0.0):,.0f} L | {cand.get('unmet_demand_liters', 0.0):,.0f} L | "
+            f"{deltas.get('unmet_pct_change', 0.0):+.1f}% | <= +2.0% |"
+        )
+        fail_row = (
+            f"| **Allocation Failures** | {noop.get('allocation_failures', 0)} | "
+            f"{base.get('allocation_failures', 0)} | {cand.get('allocation_failures', 0)} | "
+            f"{deltas.get('failures_delta', 0):+d} | <= Baseline |"
+        )
+        fb_row = (
+            f"| **Fallback Activations**| 0 | 0 | "
+            f"{cand.get('fallback_activations', 0)} | — | Report only |"
+        )
+        impact = max(0.0, noop.get('unmet_demand_liters', 0.0) - cand.get('unmet_demand_liters', 0.0))
+
         lines = [
             f"### Policy Gauntlet Scoreboard: {sc_name} (`{sc_id}`)",
             f"**Verdict**: **{verdict}**",
             "",
             "| Metric | No-Op | Greedy-v1 (Baseline) | LP-v2 (Candidate) | Delta vs Baseline | Gate Threshold |",
             "|---|---|---|---|---|---|",
-            f"| **Service Level** | {noop.get('service_level', 0.0):.3f} | {base.get('service_level', 0.0):.3f} | {cand.get('service_level', 0.0):.3f} | {deltas.get('service_level_delta', 0.0):+.3f} pp | >= -0.005 pp |",
-            f"| **Unmet Demand (L)** | {noop.get('unmet_demand_liters', 0.0):,.0f} L | {base.get('unmet_demand_liters', 0.0):,.0f} L | {cand.get('unmet_demand_liters', 0.0):,.0f} L | {deltas.get('unmet_pct_change', 0.0):+.1f}% | <= +2.0% |",
-            f"| **Allocation Failures** | {noop.get('allocation_failures', 0)} | {base.get('allocation_failures', 0)} | {cand.get('allocation_failures', 0)} | {deltas.get('failures_delta', 0):+d} | <= Baseline |",
-            f"| **Fallback Activations**| 0 | 0 | {cand.get('fallback_activations', 0)} | — | Report only |",
+            sl_row,
+            unmet_row,
+            fail_row,
+            fb_row,
             "",
-            f"> **Projected Impact**: {max(0.0, noop.get('unmet_demand_liters', 0.0) - cand.get('unmet_demand_liters', 0.0)):,.0f} L projected unmet demand avoided vs the no-action counterfactual."
+            f"> **Projected Impact**: {impact:,.0f} L projected unmet demand avoided vs the no-action counterfactual.",
         ]
         return "\n".join(lines)

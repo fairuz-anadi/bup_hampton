@@ -7,17 +7,18 @@ and full observability via LangSmith tracing.
 import os
 from typing import TypedDict
 
-from backend.app.contracts import (
+from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_openai import ChatOpenAI
+from langgraph.graph import END, START, StateGraph
+
+from app.contracts import (
     ExplainResponse,
     NetworkSnapshot,
     Recommendation,
     RouteStatus,
     StationStatus,
 )
-from backend.app.copilot.fallback import DeterministicCopilot
-from langchain_core.messages import HumanMessage, SystemMessage
-from langchain_openai import ChatOpenAI
-from langgraph.graph import END, START, StateGraph
+from app.copilot.fallback import DeterministicCopilot
 
 
 class CopilotState(TypedDict):
