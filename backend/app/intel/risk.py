@@ -5,7 +5,7 @@ shipments and forecast demand quantiles. Computes time-to-stockout and P(stockou
 """
 
 
-from backend.app.contracts import (
+from app.contracts import (
     ForecastResponse,
     FuelType,
     NetworkSnapshot,

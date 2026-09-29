@@ -68,6 +68,10 @@ class StateStore:
         if self._snapshot is not None and all(self._res[r].data is not None for r in REQUIRED):
             self._snapshot = self._build(datetime.now(UTC))
 
+    def forget_recent(self) -> None:
+        """After a simulator reset, our recent posts no longer exist."""
+        self._recent.clear()
+
     def _allocations(self) -> list[Allocation]:
         fetched: list[Allocation] = self._res["allocations"].data or []
         if not self._recent:

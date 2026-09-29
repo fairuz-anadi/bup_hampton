@@ -110,10 +110,16 @@ check("2-tick shipments arrived", len(arrived) >= 3, len(arrived))
 
 # --- fault: simulator unavailable -> degraded, cached state, writes held
 sim("POST", "/admin/faults", {"type": "unavailable", "duration_seconds": 20})
-h = wait_for(lambda: (lambda h: h if h["status"] == "degraded" else None)(api("GET", "/api/health")[1]), 20)
-check("health degraded while simulator faulted", h is not None, api("GET", "/api/health")[1])
+def sim_component_bad(h):
+    # Other components (event stream, forecaster) can be degraded for unrelated reasons; wait for the simulator's own.
+    comp = next((c for c in h.get("components", []) if c["name"] == "Simulator"), None)
+    return h if comp and comp["status"] in ("degraded", "down") else None
+h = wait_for(lambda: sim_component_bad(api("GET", "/api/health")[1]), 20)
+check("health degraded while simulator faulted", h is not None and h["status"] in ("degraded", "down"), api("GET", "/api/health")[1])
+# the snapshot only turns stale once the poller has hit the fault, so wait for it rather than sampling once
 code, st = api("GET", "/api/state")
-check("state still served (cached, stale)", code == 200 and st["freshness"]["stale"], st.get("freshness") if code == 200 else code)
+st = wait_for(lambda: (lambda s: s if s["freshness"]["stale"] else None)(api("GET", "/api/state")[1]), 20)
+check("state still served (cached, stale)", st is not None and code == 200, st.get("freshness") if st else code)
 st = wait_for(lambda: (lambda s: s if s["freshness"]["circuit"] == "OPEN" else None)(api("GET", "/api/state")[1]), 20)
 check("circuit opens", st is not None)
 code, r = api("POST", "/api/allocations", {"decision_id": "smoke-3", "legs": [

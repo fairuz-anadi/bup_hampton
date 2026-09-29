@@ -74,7 +74,10 @@ YESNO = [{"type": "value", "options": {"0": {"text": "fresh", "color": "green"},
                                        "1": {"text": "STALE", "color": "red"}}}]
 RED_ABOVE = lambda v: [{"color": "green", "value": None}, {"color": "red", "value": v}]
 
-LAT = 'histogram_quantile({q}, sum by (le) (rate(fuelguard_http_request_duration_seconds_bucket{{route!="/metrics"}}[1m])))'
+LAT = (
+    'histogram_quantile({q}, sum by (le) '
+    '(rate(fuelguard_http_request_duration_seconds_bucket{{route!="/metrics"}}[1m])))'
+)
 # "or vector(0)" so a healthy system shows 0% instead of "No data".
 ERR = ('(sum(rate(fuelguard_http_requests_total{status=~"5.."}[1m])) or vector(0)) '
        '/ clamp_min(sum(rate(fuelguard_http_requests_total[1m])), 1e-9)')
@@ -155,6 +158,12 @@ lt.ts("Latency", [(LAT.format(q=0.5).replace("[1m]", "[30s]"), "p50"),
 lt.ts("Error rate", [(ERR.replace("[1m]", "[30s]"), "5xx share")], w=8, unit="percentunit")
 lt.ts("Backend CPU", [('rate(process_cpu_seconds_total{job="backend"}[30s])', "cpu")], w=8, unit="percentunit")
 lt.ts("Backend memory", [('process_resident_memory_bytes{job="backend"}', "rss")], w=8, unit="bytes")
-lt.ts("Simulator calls during the run", [("sum by (code) (rate(fuelguard_sim_requests_total[30s]))", "{{code}}")],
-      w=24, unit="reqps", stack=True, desc="Flat while dashboard reads rise = the snapshot cache protects the simulator")
+lt.ts(
+    "Simulator calls during the run",
+    [("sum by (code) (rate(fuelguard_sim_requests_total[30s]))", "{{code}}")],
+    w=24,
+    unit="reqps",
+    stack=True,
+    desc="Flat while dashboard reads rise = the snapshot cache protects the simulator",
+)
 lt.dump()

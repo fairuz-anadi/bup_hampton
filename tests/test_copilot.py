@@ -1,11 +1,9 @@
 """Tests for Copilot, LangGraph StateGraph, and Fallback Templates."""
 
+from pathlib import Path
+
 import pytest
-from dotenv import load_dotenv
-
-load_dotenv("/Users/turjo/Desktop/bup_hampton/.env")
-
-from backend.app.contracts import (
+from app.contracts import (
     AutonomyMode,
     Depot,
     DepotStatus,
@@ -15,8 +13,11 @@ from backend.app.contracts import (
     Station,
     StationStatus,
 )
-from backend.app.copilot import CopilotService, DeterministicCopilot
-from backend.app.intel import IntelligenceService
+from app.copilot import CopilotService, DeterministicCopilot
+from app.intel import IntelligenceService
+from dotenv import load_dotenv
+
+load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 
 @pytest.fixture
@@ -38,7 +39,10 @@ def sample_rec_and_snapshot():
         ),
     }
     routes = {
-        "route-gazipur-mirpur": Route(id="route-gazipur-mirpur", depot_id="depot-gazipur", station_id="station-mirpur", transit_ticks=2, max_shipment=7000, status=RouteStatus.AVAILABLE),
+        "route-gazipur-mirpur": Route(
+            id="route-gazipur-mirpur", depot_id="depot-gazipur", station_id="station-mirpur",
+            transit_ticks=2, max_shipment=7000, status=RouteStatus.AVAILABLE
+        ),
     }
     snapshot = NetworkSnapshot(tick=10, sim_time="Day 1, 02:30", depots=depots, stations=stations, routes=routes)
     intel = IntelligenceService()

@@ -1,13 +1,14 @@
 """
 FuelGuard Decision Twin (backend/app/intel/twin.py)
 Projects side-by-side futures for candidate decisions (No-op, Greedy-v1, LP-v2),
-computes counterfactual unmet demand avoided, and implements the self-checking
-verification loop against official simulator outcomes.
+computes counterfactual unmet demand avoided, and formats futures per contracts.py.
 """
+
+from __future__ import annotations
 
 from typing import Any
 
-from backend.app.contracts import (
+from app.contracts import (
     AllocationLeg,
     ForecastResponse,
     FuelType,
@@ -15,6 +16,13 @@ from backend.app.contracts import (
     StationFuture,
     TwinFuture,
 )
+
+STATION_SHORT_NAMES = {
+    "station-mirpur": "Mirpur",
+    "station-tongi": "Tongi",
+    "station-karnaphuli": "Karnaphuli",
+    "station-coxsbazar": "Cox's Bazar",
+}
 
 
 class DecisionTwin:
@@ -29,7 +37,7 @@ class DecisionTwin:
         legs: list[AllocationLeg],
         snapshot: NetworkSnapshot,
         forecasts: dict[tuple[str, str], ForecastResponse],
-        notes: str = "",
+        notes: list[str] | str | None = None,
     ) -> TwinFuture:
         """
         Projects a decision candidate forward over the horizon, simulating
@@ -41,14 +49,14 @@ class DecisionTwin:
         # Initialize station inventories
         sim_inv: dict[tuple[str, str], float] = {}
         min_inv: dict[tuple[str, str], float] = {}
-        unmet_by_station: dict[tuple[str, str], float] = {}
+        unmet_by_station_fuel: dict[tuple[str, str], float] = {}
 
         for s_id, station in snapshot.station_map.items():
             for fuel in [FuelType.DIESEL, FuelType.PETROL, FuelType.OCTANE]:
                 init_val = station.inventory.get(fuel.value, 0.0)
                 sim_inv[(s_id, fuel.value)] = init_val
                 min_inv[(s_id, fuel.value)] = init_val
-                unmet_by_station[(s_id, fuel.value)] = 0.0
+                unmet_by_station_fuel[(s_id, fuel.value)] = 0.0
 
         # Existing in-transit shipments
         arrivals_schedule: dict[tuple[str, str, int], float] = {}
@@ -64,6 +72,8 @@ class DecisionTwin:
 
         # Step forward tick by tick
         total_network_unmet = 0.0
+        total_network_demand = 0.0
+        first_stockout_tick: int | None = None
 
         for step in range(1, horizon + 1):
             t = current_tick + step
@@ -85,18 +95,43 @@ class DecisionTwin:
                         demand = fc.bands[step - 1].mean
                     else:
                         demand = 80.0  # sensible fallback
+                    total_network_demand += demand
 
                     level = sim_inv[(s_id, fuel.value)] - demand
                     if level < 0.0:
                         short = abs(level)
-                        unmet_by_station[(s_id, fuel.value)] += short
+                        unmet_by_station_fuel[(s_id, fuel.value)] += short
                         total_network_unmet += short
                         sim_inv[(s_id, fuel.value)] = 0.0
+                        if first_stockout_tick is None:
+                            first_stockout_tick = t
                     else:
                         sim_inv[(s_id, fuel.value)] = level
 
                     if sim_inv[(s_id, fuel.value)] < min_inv[(s_id, fuel.value)]:
                         min_inv[(s_id, fuel.value)] = sim_inv[(s_id, fuel.value)]
+
+        # Aggregate unmet by station
+        unmet_by_station: dict[str, float] = {}
+        for s_id in snapshot.station_map.keys():
+            st_unmet = sum(
+                unmet_by_station_fuel.get((s_id, f.value), 0.0)
+                for f in (FuelType.DIESEL, FuelType.PETROL, FuelType.OCTANE)
+            )
+            unmet_by_station[s_id] = round(st_unmet, 1)
+
+        # Service level
+        service_level = round(
+            max(0.0, min(1.0, 1.0 - (total_network_unmet / max(total_network_demand, 1.0)))),
+            2,
+        )
+
+        # Label computation: e.g. "Do nothing" or "Send 5,000 L"
+        total_liters = sum(leg.quantity_liters for leg in legs)
+        if not legs or total_liters < 1.0:
+            label = "Do nothing"
+        else:
+            label = f"Send {int(round(total_liters)):,} L"
 
         # Compile station outcomes
         station_outcomes: list[StationFuture] = []
@@ -105,18 +140,39 @@ class DecisionTwin:
                 station_outcomes.append(StationFuture(
                     station_id=s_id,
                     fuel=fuel,
-                    unmet_liters=round(unmet_by_station[(s_id, fuel.value)], 1),
+                    unmet_liters=round(unmet_by_station_fuel[(s_id, fuel.value)], 1),
                     min_inventory=round(min_inv[(s_id, fuel.value)], 1),
                     final_inventory=round(sim_inv[(s_id, fuel.value)], 1),
                 ))
 
+        # Notes computation: flag candidates that hurt another station
+        active_notes: list[str] = []
+        if isinstance(notes, list):
+            active_notes = list(notes)
+        elif isinstance(notes, str) and notes:
+            active_notes = [notes]
+
+        # Check for stations with shortage
+        if candidate_id == "greedy-v1":
+            for s_id, s_unmet in unmet_by_station.items():
+                if s_unmet > 0:
+                    short_name = STATION_SHORT_NAMES.get(s_id, s_id)
+                    note_msg = f"{short_name} short later"
+                    if note_msg not in active_notes:
+                        active_notes.append(note_msg)
+
         future = TwinFuture(
             candidate_id=candidate_id,
+            label=label,
             name=name,
-            legs=legs,
+            horizon_ticks=horizon,
             network_unmet_liters=round(total_network_unmet, 1),
+            unmet_by_station=unmet_by_station,
             station_outcomes=station_outcomes,
-            notes=notes,
+            first_stockout_tick=first_stockout_tick,
+            service_level=service_level,
+            notes=active_notes,
+            legs=legs,
         )
         return future
 
@@ -139,7 +195,6 @@ class DecisionTwin:
             legs=[],
             snapshot=snapshot,
             forecasts=forecasts,
-            notes="Counterfactual baseline without intervention",
         )
 
         f_greedy = self.project_candidate_future(
@@ -148,7 +203,6 @@ class DecisionTwin:
             legs=greedy_legs,
             snapshot=snapshot,
             forecasts=forecasts,
-            notes="Heuristic greedy dispatch",
         )
 
         f_lp = self.project_candidate_future(
@@ -157,7 +211,6 @@ class DecisionTwin:
             legs=lp_legs,
             snapshot=snapshot,
             forecasts=forecasts,
-            notes="Linear program optimized over multi-depot network",
         )
 
         return [f_noop, f_greedy, f_lp]

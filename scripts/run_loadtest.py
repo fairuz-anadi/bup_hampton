@@ -56,6 +56,7 @@ def sampler():
 
 results = LT / "results"
 results.mkdir(exist_ok=True)
+results.chmod(0o777)  # the k6 container runs as a non-root user and must be able to write the summary
 stamp = datetime.now().strftime("%Y%m%d-%H%M")
 summary_name = f"{stamp}-{args.workload}.k6.json"
 cmd = ["docker", "run", "--rm", "--network", NETWORK, "-v", f"{LT.as_posix()}:/scripts",

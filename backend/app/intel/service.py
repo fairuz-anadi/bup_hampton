@@ -4,24 +4,32 @@ Connects Detection -> Forecasting -> Risk -> LP Optimizer / Greedy -> Decision T
 Generates fully inspectable Recommendation objects conforming to contracts.py.
 """
 
+from __future__ import annotations
+
+import concurrent.futures
 import datetime
 import os
 import uuid
 from typing import Any
 
 import httpx
-from backend.app.contracts import (
+
+from app.contracts import (
+    Candidate,
     ForecastResponse,
     FuelType,
     NetworkSnapshot,
     Recommendation,
+    SignalSeverity,
 )
-from backend.app.intel.detection import DetectionEngine
-from backend.app.intel.greedy import GreedyPolicy
-from backend.app.intel.lp import LPOptimizer
-from backend.app.intel.risk import RiskEngine
-from backend.app.intel.twin import DecisionTwin
-from forecaster.registry import fallback_predict
+from app.intel.baseline import fallback_predict
+from app.intel.detection import DetectionEngine
+from app.intel.greedy import GreedyPolicy
+from app.intel.lp import LPOptimizer
+from app.intel.risk import RiskEngine
+from app.intel.twin import DecisionTwin
+from app.obs.logging import log_event
+from app.obs.metrics import FALLBACKS
 
 
 class IntelligenceService:
@@ -30,27 +38,27 @@ class IntelligenceService:
         forecaster_url: str | None = None,
         horizon_ticks: int = 24,
     ):
-        self.forecaster_url = forecaster_url or os.getenv("FORECASTER_URL", "http://localhost:8001")
+        self.forecaster_url = forecaster_url or os.getenv("FORECASTER_URL", "http://forecaster:8090")
         self.horizon_ticks = horizon_ticks
         self.detector = DetectionEngine()
         self.risk_engine = RiskEngine(default_horizon_ticks=horizon_ticks)
         self.lp_optimizer = LPOptimizer()
         self.greedy_policy = GreedyPolicy(horizon_ticks=horizon_ticks)
         self.twin = DecisionTwin(horizon_ticks=horizon_ticks)
+        self._forecaster_offline_until = 0.0
 
     def _get_forecast(
         self,
         station_id: str,
         fuel: FuelType,
         current_tick: int,
-        demand_history: list[dict[str, Any]] | None,
-        demand_multiplier: float,
+        demand_history: list[dict[str, Any]] | None = None,
+        demand_multiplier: float = 1.0,
+        client: httpx.Client | None = None,
     ) -> ForecastResponse:
-        """Tries HTTP forecaster service first with breaker; seamlessly falls back to in-process predictor."""
+        """Tries HTTP forecaster service first; seamlessly falls back to in-process baseline."""
         import time
         now = time.time()
-        if not hasattr(self, '_forecaster_offline_until'):
-            self._forecaster_offline_until = 0.0
 
         if now > self._forecaster_offline_until:
             req_payload = {
@@ -62,16 +70,20 @@ class IntelligenceService:
                 "demand_multiplier": demand_multiplier,
             }
             try:
-                with httpx.Client(timeout=0.2) as client:
+                if client is not None:
                     res = client.post(f"{self.forecaster_url}/forecast", json=req_payload)
-                    if res.status_code == 200:
-                        return ForecastResponse(**res.json())
+                else:
+                    with httpx.Client(timeout=0.3) as c:
+                        res = c.post(f"{self.forecaster_url}/forecast", json=req_payload)
+                if res.status_code == 200:
+                    data = res.json()
+                    resp = ForecastResponse(**data)
+                    resp.fallback = False
+                    return resp
             except Exception:
-                # Mark offline for 15 seconds to avoid connection spam
                 self._forecaster_offline_until = now + 15.0
 
-        # In-process pure Python / LightGBM fallback
-        return fallback_predict(
+        fc = fallback_predict(
             station_id=station_id,
             fuel=fuel,
             horizon_ticks=self.horizon_ticks,
@@ -79,6 +91,8 @@ class IntelligenceService:
             demand_history=demand_history,
             demand_multiplier=demand_multiplier,
         )
+        fc.fallback = True
+        return fc
 
     def evaluate_and_recommend(
         self,
@@ -93,30 +107,60 @@ class IntelligenceService:
         # 1. Detection
         signals = self.detector.detect_signals(snapshot, demand_history)
 
-        # Determine if crisis containment mode is warranted
+        # Fix severity check: contract stores "crit" (or SignalSeverity.CRITICAL)
+        crit_severities = ("crit", "CRITICAL", SignalSeverity.CRITICAL)
         containment_warranted = force_containment or any(
-            s.type in ["route_disruption", "depot_constraint"] and s.severity == "CRITICAL"
+            s.type in ["route_disruption", "route_disrupted", "depot_constrained", "depot_constraint"]
+            and s.severity in crit_severities
             for s in signals
         )
 
-        # 2. Forecasting across all (station, fuel) pairs
+        # 2. Forecasting across all (station, fuel) pairs in parallel
+        pairs = [
+            (s_id, station, fuel)
+            for s_id, station in snapshot.station_map.items()
+            for fuel in [FuelType.DIESEL, FuelType.PETROL, FuelType.OCTANE]
+        ]
+
         forecasts: dict[tuple[str, str], ForecastResponse] = {}
-        for s_id, station in snapshot.station_map.items():
-            for f in [FuelType.DIESEL, FuelType.PETROL, FuelType.OCTANE]:
+
+        # Run with a pooled httpx client concurrently across threads
+        try:
+            with httpx.Client(timeout=0.3) as client:
+                def _fetch(item):
+                    s_id, station, fuel = item
+                    fc = self._get_forecast(
+                        station_id=s_id,
+                        fuel=fuel,
+                        current_tick=current_tick,
+                        demand_history=demand_history,
+                        demand_multiplier=station.demand_multiplier,
+                        client=client,
+                    )
+                    return (s_id, fuel.value), fc
+
+                with concurrent.futures.ThreadPoolExecutor(max_workers=min(len(pairs), 8)) as executor:
+                    results = executor.map(_fetch, pairs)
+                    for key, fc in results:
+                        forecasts[key] = fc
+        except Exception:
+            for s_id, station, fuel in pairs:
                 fc = self._get_forecast(
                     station_id=s_id,
-                    fuel=f,
+                    fuel=fuel,
                     current_tick=current_tick,
                     demand_history=demand_history,
                     demand_multiplier=station.demand_multiplier,
                 )
-                forecasts[(s_id, f.value)] = fc
+                forecasts[(s_id, fuel.value)] = fc
+
+        forecaster_fallback_occurred = any(fc.fallback for fc in forecasts.values())
 
         # 3. Risk Engine
         risks = self.risk_engine.evaluate_risks(snapshot, forecasts, self.horizon_ticks)
 
         # 4. Solvers: LP Optimizer + Greedy Baseline
-        lp_legs, is_fallback, policy_name = self.lp_optimizer.optimize_allocations(
+        lp_legs, lp_fallback, policy_name = self.lp_optimizer.optimize_allocations(
             snapshot, risks, containment_mode=containment_warranted
         )
         greedy_legs = self.greedy_policy.plan_allocations(snapshot, risks)
@@ -137,15 +181,28 @@ class IntelligenceService:
         after_unmet = f_lp.network_unmet_liters
         unmet_avoided = max(0.0, before_unmet - after_unmet)
 
-        # 6. Confidence Scoring
+        # 6. Fallback logging & Prometheus metrics
+        fallback_used: list[str] = []
+        if lp_fallback:
+            fallback_used.append("optimizer")
+            FALLBACKS.labels(component="optimizer").inc()
+            log_event("fallback.activated", component="optimizer")
+        if forecaster_fallback_occurred:
+            fallback_used.append("forecaster")
+            FALLBACKS.labels(component="forecaster").inc()
+            log_event("fallback.activated", component="forecaster")
+
+        # 7. Confidence Scoring & Stale Data Flagging
         confidence = 0.95
-        if is_fallback:
+        if lp_fallback:
             confidence -= 0.15
+        if forecaster_fallback_occurred:
+            confidence -= 0.10
         if snapshot.is_stale:
             confidence -= 0.40
         if containment_warranted:
             confidence -= 0.10
-        critical_signals = sum(1 for s in signals if s.severity == "CRITICAL")
+        critical_signals = sum(1 for s in signals if s.severity in crit_severities)
         confidence = max(0.40, min(0.99, confidence - (0.05 * critical_signals)))
 
         # Human Review Gate
@@ -169,16 +226,34 @@ class IntelligenceService:
             f"Greedy-v1 Baseline Future: {f_greedy.network_unmet_liters:.1f} L projected unmet demand.",
         ]
 
+        # Structure 3 Candidate options: noop, greedy-v1, lp-v2
+        candidates = [
+            Candidate(id="noop", policy="noop", legs=[]),
+            Candidate(id="greedy-v1", policy="greedy-v1", legs=greedy_legs),
+            Candidate(id="lp-v2", policy="lp-v2", legs=lp_legs),
+        ]
+        selected_candidate_id = "lp-v2" if not lp_fallback else "greedy-v1"
+
+        deployment_ver = os.getenv("DEPLOYMENT_VERSION", "dev")
+        versions = {
+            "policy": policy_name,
+            "forecast_model": "fc-v1",
+            "deployment": deployment_ver,
+        }
+
         rec = Recommendation(
             id=rec_id,
             created_at=created_at,
             tick=current_tick,
+            mode="containment" if containment_warranted else "prevention",
+            candidates=candidates,
+            selected_candidate_id=selected_candidate_id,
             policy=policy_name,
             legs=lp_legs,
             signals=signals,
             risks=risks,
+            futures=twin_futures,
             twin_futures=twin_futures,
-            selected_future_id="lp-v2" if not is_fallback else "greedy-v1",
             before_projected_unmet=round(before_unmet, 1),
             after_projected_unmet=round(after_unmet, 1),
             projected_unmet_avoided=round(unmet_avoided, 1),
@@ -187,6 +262,9 @@ class IntelligenceService:
             human_review_required=human_review_required,
             constraints_applied=constraints,
             alternatives=alternatives,
+            versions=versions,
+            fallback_used=fallback_used,
+            built_on_stale_data=snapshot.is_stale,
         )
 
         # Record for future Twin verification

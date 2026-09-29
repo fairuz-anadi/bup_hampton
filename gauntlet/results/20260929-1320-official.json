@@ -1,0 +1,641 @@
+{
+  "git_sha": "961c6f3",
+  "created": "2026-09-29T13:20:38.501046",
+  "ticks_override": 288,
+  "baseline": "greedy-v1",
+  "candidate": "lp-v2",
+  "scenarios": [
+    {
+      "scenario_id": "scenario-01-normal",
+      "name": "Normal Operations (96 Ticks)",
+      "passed": true,
+      "reasons": [],
+      "runs": {
+        "noop": {
+          "policy": "noop",
+          "scenario_id": "scenario-01-normal",
+          "ticks": 288,
+          "service_level": 0.30735,
+          "unmet_liters": 193586.0,
+          "served_liters": 85900.0,
+          "allocation_failures": 0,
+          "legs": {
+            "accepted": 0,
+            "skipped": 0,
+            "rejected": 0,
+            "held": 0
+          },
+          "blocked_codes": {},
+          "fallback_runs": 0,
+          "engine_errors": 0,
+          "decision_ms_p50": null,
+          "decision_ms_p95": null
+        },
+        "rule-40": {
+          "policy": "rule-40",
+          "scenario_id": "scenario-01-normal",
+          "ticks": 288,
+          "service_level": 1.0,
+          "unmet_liters": 0.0,
+          "served_liters": 279486.0,
+          "allocation_failures": 0,
+          "legs": {
+            "accepted": 52,
+            "skipped": 2,
+            "rejected": 0,
+            "held": 0
+          },
+          "blocked_codes": {
+            "PRECHECK_DISPATCH_CAPACITY": 2
+          },
+          "fallback_runs": 0,
+          "engine_errors": 0,
+          "decision_ms_p50": null,
+          "decision_ms_p95": null
+        },
+        "greedy-v1": {
+          "policy": "greedy-v1",
+          "scenario_id": "scenario-01-normal",
+          "ticks": 288,
+          "service_level": 1.0,
+          "unmet_liters": 0.0,
+          "served_liters": 279486.0,
+          "allocation_failures": 0,
+          "legs": {
+            "accepted": 660,
+            "skipped": 0,
+            "rejected": 0,
+            "held": 0
+          },
+          "blocked_codes": {},
+          "fallback_runs": 0,
+          "engine_errors": 0,
+          "decision_ms_p50": 21.7,
+          "decision_ms_p95": 42.2
+        },
+        "lp-v2": {
+          "policy": "lp-v2",
+          "scenario_id": "scenario-01-normal",
+          "ticks": 288,
+          "service_level": 1.0,
+          "unmet_liters": 0.0,
+          "served_liters": 279486.0,
+          "allocation_failures": 0,
+          "legs": {
+            "accepted": 1082,
+            "skipped": 0,
+            "rejected": 0,
+            "held": 0
+          },
+          "blocked_codes": {},
+          "fallback_runs": 0,
+          "engine_errors": 0,
+          "decision_ms_p50": 22.7,
+          "decision_ms_p95": 43.5
+        }
+      }
+    },
+    {
+      "scenario_id": "scenario-02-spike",
+      "name": "Demand Spike in Dhaka (1.8x)",
+      "passed": true,
+      "reasons": [],
+      "runs": {
+        "noop": {
+          "policy": "noop",
+          "scenario_id": "scenario-02-spike",
+          "ticks": 288,
+          "service_level": 0.29924,
+          "unmet_liters": 201162.2,
+          "served_liters": 85900.0,
+          "allocation_failures": 0,
+          "legs": {
+            "accepted": 0,
+            "skipped": 0,
+            "rejected": 0,
+            "held": 0
+          },
+          "blocked_codes": {},
+          "fallback_runs": 0,
+          "engine_errors": 0,
+          "decision_ms_p50": null,
+          "decision_ms_p95": null
+        },
+        "rule-40": {
+          "policy": "rule-40",
+          "scenario_id": "scenario-02-spike",
+          "ticks": 288,
+          "service_level": 1.0,
+          "unmet_liters": 0.0,
+          "served_liters": 287062.2,
+          "allocation_failures": 0,
+          "legs": {
+            "accepted": 52,
+            "skipped": 2,
+            "rejected": 0,
+            "held": 0
+          },
+          "blocked_codes": {
+            "PRECHECK_DISPATCH_CAPACITY": 2
+          },
+          "fallback_runs": 0,
+          "engine_errors": 0,
+          "decision_ms_p50": null,
+          "decision_ms_p95": null
+        },
+        "greedy-v1": {
+          "policy": "greedy-v1",
+          "scenario_id": "scenario-02-spike",
+          "ticks": 288,
+          "service_level": 1.0,
+          "unmet_liters": 0.0,
+          "served_liters": 287062.2,
+          "allocation_failures": 0,
+          "legs": {
+            "accepted": 675,
+            "skipped": 0,
+            "rejected": 0,
+            "held": 0
+          },
+          "blocked_codes": {},
+          "fallback_runs": 0,
+          "engine_errors": 0,
+          "decision_ms_p50": 21.9,
+          "decision_ms_p95": 43.9
+        },
+        "lp-v2": {
+          "policy": "lp-v2",
+          "scenario_id": "scenario-02-spike",
+          "ticks": 288,
+          "service_level": 1.0,
+          "unmet_liters": 0.0,
+          "served_liters": 287062.2,
+          "allocation_failures": 0,
+          "legs": {
+            "accepted": 1108,
+            "skipped": 0,
+            "rejected": 0,
+            "held": 0
+          },
+          "blocked_codes": {},
+          "fallback_runs": 0,
+          "engine_errors": 0,
+          "decision_ms_p50": 21.7,
+          "decision_ms_p95": 41.5
+        }
+      }
+    },
+    {
+      "scenario_id": "scenario-03-route",
+      "name": "Route Disruption (Gazipur -> Mirpur)",
+      "passed": true,
+      "reasons": [],
+      "runs": {
+        "noop": {
+          "policy": "noop",
+          "scenario_id": "scenario-03-route",
+          "ticks": 288,
+          "service_level": 0.30735,
+          "unmet_liters": 193586.0,
+          "served_liters": 85900.0,
+          "allocation_failures": 0,
+          "legs": {
+            "accepted": 0,
+            "skipped": 0,
+            "rejected": 0,
+            "held": 0
+          },
+          "blocked_codes": {},
+          "fallback_runs": 0,
+          "engine_errors": 0,
+          "decision_ms_p50": null,
+          "decision_ms_p95": null
+        },
+        "rule-40": {
+          "policy": "rule-40",
+          "scenario_id": "scenario-03-route",
+          "ticks": 288,
+          "service_level": 1.0,
+          "unmet_liters": 0.0,
+          "served_liters": 279486.0,
+          "allocation_failures": 0,
+          "legs": {
+            "accepted": 51,
+            "skipped": 31,
+            "rejected": 0,
+            "held": 0
+          },
+          "blocked_codes": {
+            "PRECHECK_ROUTE_DISRUPTED": 28,
+            "PRECHECK_DISPATCH_CAPACITY": 3
+          },
+          "fallback_runs": 0,
+          "engine_errors": 0,
+          "decision_ms_p50": null,
+          "decision_ms_p95": null
+        },
+        "greedy-v1": {
+          "policy": "greedy-v1",
+          "scenario_id": "scenario-03-route",
+          "ticks": 288,
+          "service_level": 1.0,
+          "unmet_liters": 0.0,
+          "served_liters": 279486.0,
+          "allocation_failures": 0,
+          "legs": {
+            "accepted": 660,
+            "skipped": 0,
+            "rejected": 0,
+            "held": 0
+          },
+          "blocked_codes": {},
+          "fallback_runs": 0,
+          "engine_errors": 0,
+          "decision_ms_p50": 25.4,
+          "decision_ms_p95": 44.1
+        },
+        "lp-v2": {
+          "policy": "lp-v2",
+          "scenario_id": "scenario-03-route",
+          "ticks": 288,
+          "service_level": 1.0,
+          "unmet_liters": 0.0,
+          "served_liters": 279486.0,
+          "allocation_failures": 0,
+          "legs": {
+            "accepted": 1082,
+            "skipped": 0,
+            "rejected": 0,
+            "held": 0
+          },
+          "blocked_codes": {},
+          "fallback_runs": 0,
+          "engine_errors": 0,
+          "decision_ms_p50": 24.7,
+          "decision_ms_p95": 46.2
+        }
+      }
+    },
+    {
+      "scenario_id": "scenario-04-outage",
+      "name": "Station Outage (Tongi Outage)",
+      "passed": true,
+      "reasons": [],
+      "runs": {
+        "noop": {
+          "policy": "noop",
+          "scenario_id": "scenario-04-outage",
+          "ticks": 288,
+          "service_level": 0.30735,
+          "unmet_liters": 193586.0,
+          "served_liters": 85900.0,
+          "allocation_failures": 0,
+          "legs": {
+            "accepted": 0,
+            "skipped": 0,
+            "rejected": 0,
+            "held": 0
+          },
+          "blocked_codes": {},
+          "fallback_runs": 0,
+          "engine_errors": 0,
+          "decision_ms_p50": null,
+          "decision_ms_p95": null
+        },
+        "rule-40": {
+          "policy": "rule-40",
+          "scenario_id": "scenario-04-outage",
+          "ticks": 288,
+          "service_level": 0.98465,
+          "unmet_liters": 4289.0,
+          "served_liters": 275197.0,
+          "allocation_failures": 0,
+          "legs": {
+            "accepted": 51,
+            "skipped": 2,
+            "rejected": 0,
+            "held": 0
+          },
+          "blocked_codes": {
+            "PRECHECK_DISPATCH_CAPACITY": 2
+          },
+          "fallback_runs": 0,
+          "engine_errors": 0,
+          "decision_ms_p50": null,
+          "decision_ms_p95": null
+        },
+        "greedy-v1": {
+          "policy": "greedy-v1",
+          "scenario_id": "scenario-04-outage",
+          "ticks": 288,
+          "service_level": 0.98465,
+          "unmet_liters": 4289.0,
+          "served_liters": 275197.0,
+          "allocation_failures": 0,
+          "legs": {
+            "accepted": 640,
+            "skipped": 0,
+            "rejected": 0,
+            "held": 0
+          },
+          "blocked_codes": {},
+          "fallback_runs": 0,
+          "engine_errors": 0,
+          "decision_ms_p50": 24.8,
+          "decision_ms_p95": 45.1
+        },
+        "lp-v2": {
+          "policy": "lp-v2",
+          "scenario_id": "scenario-04-outage",
+          "ticks": 288,
+          "service_level": 0.98465,
+          "unmet_liters": 4289.0,
+          "served_liters": 275197.0,
+          "allocation_failures": 0,
+          "legs": {
+            "accepted": 1059,
+            "skipped": 0,
+            "rejected": 0,
+            "held": 0
+          },
+          "blocked_codes": {},
+          "fallback_runs": 0,
+          "engine_errors": 0,
+          "decision_ms_p50": 22.0,
+          "decision_ms_p95": 41.3
+        }
+      }
+    },
+    {
+      "scenario_id": "scenario-05-depot",
+      "name": "Depot Constraint (Gazipur Throughput Restricted)",
+      "passed": true,
+      "reasons": [],
+      "runs": {
+        "noop": {
+          "policy": "noop",
+          "scenario_id": "scenario-05-depot",
+          "ticks": 288,
+          "service_level": 0.30735,
+          "unmet_liters": 193586.0,
+          "served_liters": 85900.0,
+          "allocation_failures": 0,
+          "legs": {
+            "accepted": 0,
+            "skipped": 0,
+            "rejected": 0,
+            "held": 0
+          },
+          "blocked_codes": {},
+          "fallback_runs": 0,
+          "engine_errors": 0,
+          "decision_ms_p50": null,
+          "decision_ms_p95": null
+        },
+        "rule-40": {
+          "policy": "rule-40",
+          "scenario_id": "scenario-05-depot",
+          "ticks": 288,
+          "service_level": 1.0,
+          "unmet_liters": 0.0,
+          "served_liters": 279486.0,
+          "allocation_failures": 0,
+          "legs": {
+            "accepted": 52,
+            "skipped": 2,
+            "rejected": 0,
+            "held": 0
+          },
+          "blocked_codes": {
+            "PRECHECK_DISPATCH_CAPACITY": 2
+          },
+          "fallback_runs": 0,
+          "engine_errors": 0,
+          "decision_ms_p50": null,
+          "decision_ms_p95": null
+        },
+        "greedy-v1": {
+          "policy": "greedy-v1",
+          "scenario_id": "scenario-05-depot",
+          "ticks": 288,
+          "service_level": 1.0,
+          "unmet_liters": 0.0,
+          "served_liters": 279486.0,
+          "allocation_failures": 0,
+          "legs": {
+            "accepted": 660,
+            "skipped": 0,
+            "rejected": 0,
+            "held": 0
+          },
+          "blocked_codes": {},
+          "fallback_runs": 0,
+          "engine_errors": 24,
+          "decision_ms_p50": 24.7,
+          "decision_ms_p95": 46.1
+        },
+        "lp-v2": {
+          "policy": "lp-v2",
+          "scenario_id": "scenario-05-depot",
+          "ticks": 288,
+          "service_level": 1.0,
+          "unmet_liters": 0.0,
+          "served_liters": 279486.0,
+          "allocation_failures": 0,
+          "legs": {
+            "accepted": 1082,
+            "skipped": 0,
+            "rejected": 0,
+            "held": 0
+          },
+          "blocked_codes": {},
+          "fallback_runs": 0,
+          "engine_errors": 24,
+          "decision_ms_p50": 20.3,
+          "decision_ms_p95": 44.4
+        }
+      }
+    },
+    {
+      "scenario_id": "scenario-06-delay",
+      "name": "Shipment Delay (Gazipur Petrol Resupply +8 Ticks)",
+      "passed": true,
+      "reasons": [],
+      "runs": {
+        "noop": {
+          "policy": "noop",
+          "scenario_id": "scenario-06-delay",
+          "ticks": 288,
+          "service_level": 0.30735,
+          "unmet_liters": 193586.0,
+          "served_liters": 85900.0,
+          "allocation_failures": 0,
+          "legs": {
+            "accepted": 0,
+            "skipped": 0,
+            "rejected": 0,
+            "held": 0
+          },
+          "blocked_codes": {},
+          "fallback_runs": 0,
+          "engine_errors": 0,
+          "decision_ms_p50": null,
+          "decision_ms_p95": null
+        },
+        "rule-40": {
+          "policy": "rule-40",
+          "scenario_id": "scenario-06-delay",
+          "ticks": 288,
+          "service_level": 1.0,
+          "unmet_liters": 0.0,
+          "served_liters": 279486.0,
+          "allocation_failures": 0,
+          "legs": {
+            "accepted": 52,
+            "skipped": 2,
+            "rejected": 0,
+            "held": 0
+          },
+          "blocked_codes": {
+            "PRECHECK_DISPATCH_CAPACITY": 2
+          },
+          "fallback_runs": 0,
+          "engine_errors": 0,
+          "decision_ms_p50": null,
+          "decision_ms_p95": null
+        },
+        "greedy-v1": {
+          "policy": "greedy-v1",
+          "scenario_id": "scenario-06-delay",
+          "ticks": 288,
+          "service_level": 0.6054,
+          "unmet_liters": 110284.2,
+          "served_liters": 169201.7,
+          "allocation_failures": 0,
+          "legs": {
+            "accepted": 186,
+            "skipped": 0,
+            "rejected": 0,
+            "held": 0
+          },
+          "blocked_codes": {},
+          "fallback_runs": 0,
+          "engine_errors": 194,
+          "decision_ms_p50": 13.1,
+          "decision_ms_p95": 37.4
+        },
+        "lp-v2": {
+          "policy": "lp-v2",
+          "scenario_id": "scenario-06-delay",
+          "ticks": 288,
+          "service_level": 0.6055,
+          "unmet_liters": 110257.5,
+          "served_liters": 169228.4,
+          "allocation_failures": 0,
+          "legs": {
+            "accepted": 412,
+            "skipped": 0,
+            "rejected": 0,
+            "held": 0
+          },
+          "blocked_codes": {},
+          "fallback_runs": 0,
+          "engine_errors": 194,
+          "decision_ms_p50": 12.9,
+          "decision_ms_p95": 34.0
+        }
+      }
+    },
+    {
+      "scenario_id": "scenario-07-combined",
+      "name": "Combined Crisis (Spike + Disruption + Delay)",
+      "passed": true,
+      "reasons": [],
+      "runs": {
+        "noop": {
+          "policy": "noop",
+          "scenario_id": "scenario-07-combined",
+          "ticks": 288,
+          "service_level": 0.29618,
+          "unmet_liters": 204128.8,
+          "served_liters": 85900.0,
+          "allocation_failures": 0,
+          "legs": {
+            "accepted": 0,
+            "skipped": 0,
+            "rejected": 0,
+            "held": 0
+          },
+          "blocked_codes": {},
+          "fallback_runs": 0,
+          "engine_errors": 0,
+          "decision_ms_p50": null,
+          "decision_ms_p95": null
+        },
+        "rule-40": {
+          "policy": "rule-40",
+          "scenario_id": "scenario-07-combined",
+          "ticks": 288,
+          "service_level": 1.0,
+          "unmet_liters": 0.0,
+          "served_liters": 290028.8,
+          "allocation_failures": 0,
+          "legs": {
+            "accepted": 52,
+            "skipped": 28,
+            "rejected": 0,
+            "held": 0
+          },
+          "blocked_codes": {
+            "PRECHECK_ROUTE_DISRUPTED": 23,
+            "PRECHECK_DISPATCH_CAPACITY": 5
+          },
+          "fallback_runs": 0,
+          "engine_errors": 0,
+          "decision_ms_p50": null,
+          "decision_ms_p95": null
+        },
+        "greedy-v1": {
+          "policy": "greedy-v1",
+          "scenario_id": "scenario-07-combined",
+          "ticks": 288,
+          "service_level": 0.58857,
+          "unmet_liters": 119327.1,
+          "served_liters": 170701.7,
+          "allocation_failures": 0,
+          "legs": {
+            "accepted": 190,
+            "skipped": 0,
+            "rejected": 0,
+            "held": 0
+          },
+          "blocked_codes": {},
+          "fallback_runs": 0,
+          "engine_errors": 179,
+          "decision_ms_p50": 15.4,
+          "decision_ms_p95": 36.9
+        },
+        "lp-v2": {
+          "policy": "lp-v2",
+          "scenario_id": "scenario-07-combined",
+          "ticks": 288,
+          "service_level": 0.58676,
+          "unmet_liters": 119850.4,
+          "served_liters": 170178.4,
+          "allocation_failures": 0,
+          "legs": {
+            "accepted": 416,
+            "skipped": 0,
+            "rejected": 0,
+            "held": 0
+          },
+          "blocked_codes": {},
+          "fallback_runs": 0,
+          "engine_errors": 179,
+          "decision_ms_p50": 17.4,
+          "decision_ms_p95": 38.5
+        }
+      }
+    }
+  ]
+}

@@ -145,7 +145,8 @@ def test_explainer_without_llm_uses_templates(snap, rec, monkeypatch):
     assert out.source == "template" and "Projected impact" in out.text
 
 
-def test_copilot_eval_dataset_passes_on_templates():
+def test_copilot_eval_dataset_passes_on_templates(monkeypatch):
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     from app.explain.evals import load_cases, run_case
     cases = load_cases()
     assert len(cases) >= 6

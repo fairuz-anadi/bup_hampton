@@ -138,6 +138,8 @@ async def chaos_sim(action: str, request: Request):
     except SimulatorError as exc:
         _raise(exc)
     log_event("chaos.sim_control", action=action)
+    if action == "reset":
+        svc.store.forget_recent()
     await svc.store.refresh()
     return result
 

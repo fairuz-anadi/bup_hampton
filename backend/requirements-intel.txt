@@ -1,0 +1,6 @@
+# Needed by the intelligence lane (backend/app/intel, forecaster/) when it runs inside the backend.
+# Turjo: add anything else intel/forecaster imports here so the Docker image and CI pick it up.
+numpy==2.5.3
+scipy==1.18.1
+lightgbm==4.7.0
+PyYAML==6.0.3

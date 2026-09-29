@@ -425,7 +425,8 @@ class Signal(_Model):
     """Why an area is at risk. Shown to operators and handed to the copilot."""
     kind: Literal["demand_anomaly", "depletion", "route_disrupted", "station_outage", "depot_constrained",
                   "supply_delayed", "supply_reduced", "stockout_risk", "stale_data", "other",
-                  "demand_spike", "route_disruption", "persistent_demand_drift"] = "other"
+                  "demand_spike", "route_disruption", "persistent_demand_drift",
+                  "depot_constraint", "shipment_delay"] = "other"
     severity: Literal["info", "warn", "crit"] = "info"
     message: str = ""
     station_id: str | None = None
@@ -441,9 +442,23 @@ class Signal(_Model):
     def _map_signal_aliases(cls, data: Any) -> Any:
         if isinstance(data, dict):
             if "type" in data and "kind" not in data:
-                data["kind"] = data["type"]
+                t = data["type"]
+                if t == "depot_constraint":
+                    data["kind"] = "depot_constrained"
+                elif t == "shipment_delay":
+                    data["kind"] = "supply_delayed"
+                else:
+                    data["kind"] = t
             if "target_id" in data and "station_id" not in data:
                 data["station_id"] = data["target_id"]
+            if "severity" in data and isinstance(data["severity"], str):
+                s = data["severity"].lower()
+                if s == "critical":
+                    data["severity"] = "crit"
+                elif s == "warning":
+                    data["severity"] = "warn"
+                elif s == "info":
+                    data["severity"] = "info"
         return data
 
     @property
@@ -525,6 +540,18 @@ class Recommendation(_Model):
     legs: list[AllocationLeg] = Field(default_factory=list)
     policy: str = "lp-v2"
     alternatives: list[str] = Field(default_factory=list)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _map_rec_aliases(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            if "selected_future_id" in data and "selected_candidate_id" not in data:
+                data["selected_candidate_id"] = data["selected_future_id"]
+            if "twin_futures" in data and "futures" not in data:
+                data["futures"] = data["twin_futures"]
+            elif "futures" in data and "twin_futures" not in data:
+                data["twin_futures"] = data["futures"]
+        return data
 
 
 # ---------------------------------------------------------------------------------------------

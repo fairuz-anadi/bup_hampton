@@ -1,0 +1,18 @@
+id: "scenario-08-tongi-cutoff"
+name: "Tongi cut off during a long Dhaka spike (single-route station)"
+# Tongi has no backup route. Its only road closes while Dhaka demand is up, so the policy has to fill
+# Tongi before the closure and keep Gazipur's stock for it: containment, not just top-ups.
+duration_ticks: 192
+seed: 42
+events:
+  - type: "demand_spike"
+    start_tick: 36
+    duration_ticks: 96
+    parameters:
+      region_ids: ["region-dhaka"]
+      multiplier: 1.8
+  - type: "route_disruption"
+    start_tick: 48
+    duration_ticks: 72
+    parameters:
+      route_ids: ["route-gazipur-tongi"]

@@ -91,6 +91,18 @@ class DecisionService:
         await self._save(record)
         return record
 
+    async def expire_stale(self, current_tick: int, ttl_ticks: int = 8) -> int:
+        """Close reviewable decisions that are too old to act on, or that belong to a run the simulator
+        has since been reset from (their tick is in the future). They are rejected by 'system'."""
+        expired = 0
+        for record in self.repo.by_stage(*REVIEWABLE):
+            if record.sim_tick > current_tick or current_tick - record.sim_tick > ttl_ticks:
+                reason = ("simulator was reset" if record.sim_tick > current_tick
+                          else f"expired: older than {ttl_ticks} ticks, the network has changed")
+                await self.reject(record.decision_id, by="system", reason=reason)
+                expired += 1
+        return expired
+
     async def reject(self, decision_id: str, by: str, reason: str) -> DecisionRecord:
         record = self._reviewable(decision_id)
         record = record.model_copy(update={"stage": "rejected", "approval": {

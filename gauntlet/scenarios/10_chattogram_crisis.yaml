@@ -1,0 +1,23 @@
+id: "scenario-10-chattogram"
+name: "Chattogram crisis: Patiya constrained, Patiya → Karnaphuli closed, highway spike"
+# Karnaphuli must be served over the 4-tick Gazipur backup route while Cox's Bazar (single route)
+# still depends on Patiya. Tests rerouting and cross-depot balancing.
+duration_ticks: 192
+seed: 42
+events:
+  - type: "demand_spike"
+    start_tick: 30
+    duration_ticks: 72
+    parameters:
+      region_ids: ["region-chattogram"]
+      multiplier: 1.7
+  - type: "route_disruption"
+    start_tick: 40
+    duration_ticks: 60
+    parameters:
+      route_ids: ["route-patiya-karnaphuli"]
+  - type: "depot_constraint"
+    start_tick: 40
+    duration_ticks: 60
+    parameters:
+      depot_ids: ["depot-patiya"]

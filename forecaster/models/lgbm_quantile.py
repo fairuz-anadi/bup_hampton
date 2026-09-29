@@ -10,7 +10,10 @@ from typing import Any
 import lightgbm as lgb
 import numpy as np
 
-from backend.app.contracts import ForecastBand, ForecastResponse, FuelType
+try:
+    from app.contracts import ForecastBand, ForecastResponse, FuelType
+except ImportError:
+    from backend.app.contracts import ForecastBand, ForecastResponse, FuelType
 from forecaster.models.baseline import (
     PROFILES,
     STATION_PROFILES,
@@ -39,11 +42,13 @@ class LGBMQuantileForecaster:
     ) -> list[float]:
         hour = tick_to_sim_hour(tick)
         day_of_week = (tick // 96) % 7
-        prof_idx = ["urban_high", "industrial", "highway", "regional"].index(profile) if profile in ["urban_high", "industrial", "highway", "regional"] else 0
-        fuel_idx = ["DIESEL", "PETROL", "OCTANE"].index(fuel) if fuel in ["DIESEL", "PETROL", "OCTANE"] else 0
-        
+        profiles_list = ["urban_high", "industrial", "highway", "regional"]
+        prof_idx = profiles_list.index(profile) if profile in profiles_list else 0
+        fuels_list = ["DIESEL", "PETROL", "OCTANE"]
+        fuel_idx = fuels_list.index(fuel) if fuel in fuels_list else 0
+
         prof_base = self.baseline.compute_base_demand_for_tick(profile, fuel, tick, demand_multiplier)
-        
+
         return [
             float(hour),
             float(day_of_week),

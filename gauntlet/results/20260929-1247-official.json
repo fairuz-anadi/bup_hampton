@@ -1,0 +1,100 @@
+{
+  "git_sha": "961c6f3",
+  "created": "2026-09-29T12:47:20.443214",
+  "ticks_override": 48,
+  "baseline": "greedy-v1",
+  "candidate": "lp-v2",
+  "scenarios": [
+    {
+      "scenario_id": "scenario-03-route",
+      "name": "Route Disruption (Gazipur -> Mirpur)",
+      "passed": true,
+      "reasons": [],
+      "runs": {
+        "noop": {
+          "policy": "noop",
+          "scenario_id": "scenario-03-route",
+          "ticks": 48,
+          "service_level": 1.0,
+          "unmet_liters": 0.0,
+          "served_liters": 44322.4,
+          "allocation_failures": 0,
+          "legs": {
+            "accepted": 0,
+            "skipped": 0,
+            "rejected": 0,
+            "held": 0
+          },
+          "blocked_codes": {},
+          "fallback_runs": 0,
+          "engine_errors": 0,
+          "decision_ms_p50": null,
+          "decision_ms_p95": null
+        },
+        "rule-40": {
+          "policy": "rule-40",
+          "scenario_id": "scenario-03-route",
+          "ticks": 48,
+          "service_level": 1.0,
+          "unmet_liters": 0.0,
+          "served_liters": 44322.4,
+          "allocation_failures": 0,
+          "legs": {
+            "accepted": 10,
+            "skipped": 29,
+            "rejected": 0,
+            "held": 0
+          },
+          "blocked_codes": {
+            "PRECHECK_ROUTE_DISRUPTED": 28,
+            "PRECHECK_DISPATCH_CAPACITY": 1
+          },
+          "fallback_runs": 0,
+          "engine_errors": 0,
+          "decision_ms_p50": null,
+          "decision_ms_p95": null
+        },
+        "greedy-v1": {
+          "policy": "greedy-v1",
+          "scenario_id": "scenario-03-route",
+          "ticks": 48,
+          "service_level": 1.0,
+          "unmet_liters": 0.0,
+          "served_liters": 44322.4,
+          "allocation_failures": 0,
+          "legs": {
+            "accepted": 5,
+            "skipped": 0,
+            "rejected": 0,
+            "held": 0
+          },
+          "blocked_codes": {},
+          "fallback_runs": 0,
+          "engine_errors": 0,
+          "decision_ms_p50": 15.1,
+          "decision_ms_p95": 41.7
+        },
+        "lp-v2": {
+          "policy": "lp-v2",
+          "scenario_id": "scenario-03-route",
+          "ticks": 48,
+          "service_level": 1.0,
+          "unmet_liters": 0.0,
+          "served_liters": 44322.4,
+          "allocation_failures": 0,
+          "legs": {
+            "accepted": 3,
+            "skipped": 0,
+            "rejected": 0,
+            "held": 0
+          },
+          "blocked_codes": {},
+          "fallback_runs": 0,
+          "engine_errors": 0,
+          "decision_ms_p50": 15.5,
+          "decision_ms_p95": 41.2
+        }
+      }
+    }
+  ]
+}

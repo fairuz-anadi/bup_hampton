@@ -9,7 +9,11 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     simulator_url: str = "http://localhost:8000"
-    sim_timeout_seconds: float = Field(3.0, gt=0)
+    # Read timeout must stay >= the simulator's own 30 s DB pool timeout: an abandoned request leaks a
+    # simulator DB connection (see docs/hour-one.md). Connect timeout can be short.
+    sim_timeout_seconds: float = Field(30.0, ge=30)
+    sim_connect_timeout_seconds: float = Field(2.0, gt=0)
+    sim_max_concurrency: int = Field(4, ge=1, le=10)
     sim_retries: int = Field(2, ge=0, le=5)
     sim_backoff_base_seconds: float = Field(0.2, ge=0)
 
@@ -33,6 +37,12 @@ class Settings(BaseSettings):
     forecaster_url: str = ""
     default_policy: str = "greedy-v1"
     outcome_check_seconds: float = Field(2.0, gt=0)
+
+    # Decision engine (intelligence lane) and the loop that puts its recommendations up for review.
+    decision_loop_enabled: bool = True
+    intel_timeout_seconds: float = Field(5.0, gt=0)
+    # Off until the intel lane reads the real demand-history fields (demand_liters / fuel_type).
+    intel_use_demand_history: bool = False
 
     log_level: str = "INFO"
     deployment_version: str = "dev"

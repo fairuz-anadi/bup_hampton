@@ -1,0 +1,60 @@
+name: gauntlet
+
+# Policy Gauntlet on the official simulator image: every policy change must not do worse than the
+# greedy-v1 baseline on the deterministic crisis scenarios in gauntlet/scenarios/.
+on:
+  push:
+    branches: [main]
+    paths: ["backend/**", "forecaster/**", "gauntlet/**", "scripts/gauntlet_official.py", ".github/workflows/gauntlet.yml"]
+  pull_request:
+    paths: ["backend/**", "forecaster/**", "gauntlet/**", "scripts/gauntlet_official.py"]
+  workflow_dispatch:
+    inputs:
+      ticks:
+        description: "Ticks per run (blank = each scenario's duration_ticks)"
+        required: false
+
+jobs:
+  gauntlet:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      OPERATOR_KEY: ci-${{ github.run_id }}
+      DEPLOYMENT_VERSION: ${{ github.sha }}
+      POSTGRES_PASSWORD: ci-${{ github.run_id }}
+      GRAFANA_ADMIN_PASSWORD: ci-${{ github.run_id }}
+      AUTOPILOT: "false"  # the Gauntlet drives allocations itself; the engine's autopilot must not interfere
+    steps:
+      - uses: actions/checkout@v4
+      - name: Start stack
+        run: docker compose up -d --build simulator-api postgres backend
+      - name: Wait for backend health
+        run: |
+          for i in $(seq 1 90); do
+            [ "$(docker inspect bup_hampton-backend-1 --format '{{.State.Health.Status}}')" = healthy ] && exit 0
+            sleep 2
+          done
+          docker compose logs backend; exit 1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install pyyaml
+      - name: Run the Gauntlet
+        run: |
+          extra=""
+          [ -n "${{ github.event.inputs.ticks }}" ] && extra="--ticks ${{ github.event.inputs.ticks }}"
+          python scripts/gauntlet_official.py --key "$OPERATOR_KEY" $extra
+      - name: Summary
+        if: always()
+        run: cat gauntlet/results/latest.md >> "$GITHUB_STEP_SUMMARY" || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: gauntlet-results
+          path: gauntlet/results/
+      - name: Logs on failure
+        if: failure()
+        run: docker compose logs --tail 200 backend
+      - name: Tear down
+        if: always()
+        run: docker compose down -v
