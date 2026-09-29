@@ -12,6 +12,7 @@ import { Architecture } from './screens/Architecture';
 import { NetworkScreen } from './screens/NetworkScreen';
 import { StationScreen } from './screens/StationScreen';
 import { HistoryScreen } from './screens/HistoryScreen';
+import { Chatbot } from './components/Chatbot/Chatbot';
 
 const svg = (d: ReactNode) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">{d}</svg>;
 const I = {
@@ -91,6 +92,7 @@ export function App() {
         {waiting && <div className="banner warn" role="status"><b>Connecting to the simulator…</b> The backend is up but has not read the simulator yet.</div>}
         <div className="fade-in" key={page + (arg ?? '')}>{body}</div>
       </main>
+      <Chatbot />
     </div>
   );
 }
