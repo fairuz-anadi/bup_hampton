@@ -28,6 +28,9 @@ TWIN_ERROR_HIST = Histogram("fuelguard_twin_error_liters_hist", "Twin error per 
                             buckets=(10, 25, 50, 100, 250, 500, 1000, 2500, 5000))
 DB_BUFFERED = Gauge("fuelguard_db_buffered", "Records waiting for the database")
 DB_WRITE_ERRORS = Counter("fuelguard_db_write_errors_total", "Database write failures")
+INTEL_RUNS = Counter("fuelguard_intel_runs_total", "Decision engine runs by outcome", ["outcome"])
+INTEL_LATENCY = Histogram("fuelguard_intel_run_seconds", "Decision engine run time (detect..Twin)",
+                          buckets=(.005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5))
 PACER_RUNNING = Gauge("fuelguard_pacer_running", "1 while the backend pacer is stepping the simulator")
 
 

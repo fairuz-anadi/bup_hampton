@@ -1,0 +1,17 @@
+id: "scenario-09-shortfall"
+name: "Network-wide supply shortfall + late deliveries (scarcity)"
+# Every scheduled delivery arrives late and at 40% of plan. Depots run short, so not every station can
+# be kept full: the policy has to ration by risk instead of topping up whoever asks first.
+duration_ticks: 288
+seed: 42
+events:
+  - type: "shipment_delay"
+    start_tick: 8
+    duration_ticks: 1
+    parameters:
+      delay_ticks: 24
+  - type: "supply_shortfall"
+    start_tick: 8
+    duration_ticks: 1
+    parameters:
+      factor: 0.4

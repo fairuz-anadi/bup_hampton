@@ -64,16 +64,33 @@ def _adapter(tp: Any) -> TypeAdapter:
 
 
 class SimulatorClient:
-    def __init__(self, base_url: str, *, timeout: float = 3.0, retries: int = 2, backoff_base: float = 0.2,
+    """
+    Never abandon a request the simulator has started on. Verified: when a client gives up mid-request
+    (timeout / disconnect), the simulator leaks a database connection. After 15 of them its pool is
+    exhausted and every endpoint, /v1/health included, hangs until the container restarts. So:
+      - read timeout (30 s) >= the simulator's own pool timeout, so it answers (even with a 500) first;
+      - connect timeout stays short: a request that never connected costs the simulator nothing;
+      - at most `max_concurrency` requests in flight, queued here rather than in the simulator;
+      - a read timeout is not retried (the simulator may still be working on it).
+    """
+
+    def __init__(self, base_url: str, *, read_timeout: float = 30.0, connect_timeout: float = 2.0,
+                 max_concurrency: int = 4, retries: int = 2, backoff_base: float = 0.2,
                  breaker: CircuitBreaker | None = None, transport: httpx.AsyncBaseTransport | None = None):
         self.base_url = base_url.rstrip("/")
         self.retries = retries
         self.backoff_base = backoff_base
         self.breaker = breaker or CircuitBreaker()
-        self._http = httpx.AsyncClient(base_url=self.base_url, timeout=timeout, transport=transport)
+        timeout = httpx.Timeout(connect=connect_timeout, read=read_timeout, write=10.0, pool=read_timeout)
+        limits = httpx.Limits(max_connections=max_concurrency, max_keepalive_connections=max_concurrency)
+        self._http = httpx.AsyncClient(base_url=self.base_url, timeout=timeout, limits=limits, transport=transport)
+        # The SSE stream is long-lived: give it its own connection so it never takes a request slot.
+        self._stream_http = httpx.AsyncClient(base_url=self.base_url, transport=transport,
+                                              timeout=httpx.Timeout(None, connect=connect_timeout))
 
     async def aclose(self) -> None:
         await self._http.aclose()
+        await self._stream_http.aclose()
 
     # ------------------------------------------------------------------ core request path
 
@@ -93,6 +110,11 @@ class SimulatorClient:
             started = time.perf_counter()
             try:
                 resp = await self._http.request(method, path, json=json_body, params=params)
+            except (httpx.ReadTimeout, httpx.WriteTimeout) as exc:
+                # The request reached the simulator; retrying would only add load. Give up now.
+                SIM_REQUESTS.labels(label, type(exc).__name__).inc()
+                last = SimulatorUnavailable(f"{method} {path}: {type(exc).__name__}")
+                break
             except (httpx.TimeoutException, httpx.TransportError) as exc:
                 SIM_REQUESTS.labels(label, type(exc).__name__).inc()
                 last = SimulatorUnavailable(f"{method} {path}: {type(exc).__name__}")
@@ -207,7 +229,7 @@ class SimulatorClient:
         The first item is always ("stream.open", None). Comments (': connected', ': keepalive') are
         skipped. There is no replay, so the caller must re-sync over REST after every (re)connect.
         """
-        async with self._http.stream("GET", "/v1/stream", timeout=httpx.Timeout(None, connect=5.0)) as resp:
+        async with self._stream_http.stream("GET", "/v1/stream") as resp:
             if resp.status_code != 200:
                 await resp.aread()
                 code, message, injected = parse_error_body(resp.status_code, _json_or_none(resp))

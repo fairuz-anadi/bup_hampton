@@ -19,6 +19,7 @@ from app.contracts import (
 from app.sim.errors import SimulatorAPIError, SimulatorError
 
 router = APIRouter(prefix="/api")
+STATE_MAX_AGE_SECONDS = 10  # snapshot older than this = simulator is slow even if nothing failed
 
 
 def _services(request: Request):
@@ -88,19 +89,17 @@ async def health(request: Request) -> HealthReport:
     components = [ComponentHealth(name="Backend API", status="healthy")]
 
     # Simulator: /v1/health skips fault injection, so "health ok but /v1/* failing" means faulted, not down.
-    # The probe result is reused for a second so a busy health page can't hammer the simulator.
-    cached = svc.demand_cache.get("sim_alive")
-    if cached and time.monotonic() - cached[0] < 1.0:
-        sim_alive = cached[1]
-    else:
-        try:
-            await svc.client.health()
-            sim_alive = True
-        except SimulatorError:
-            sim_alive = False
-        svc.demand_cache["sim_alive"] = (time.monotonic(), sim_alive)
+    # The probe runs in the background (Services._probe_loop); this handler never waits on the simulator.
+    probe = svc.sim_probe
+    pending = time.monotonic() - probe["pending_since"] if probe.get("pending_since") else 0.0
+    sim_alive = probe.get("alive")
     circuit = svc.client.breaker.state
-    if not sim_alive:
+    if pending > 5:
+        components.append(ComponentHealth(name="Simulator", status="degraded",
+                                          detail=f"slow: health probe waiting {pending:.0f}s"))
+    elif sim_alive is None:
+        components.append(ComponentHealth(name="Simulator", status="unknown", detail="first probe pending"))
+    elif not sim_alive:
         components.append(ComponentHealth(name="Simulator", status="down", detail="/v1/health unreachable"))
     elif circuit != "CLOSED" or (snap and snap.freshness.stale):
         reasons = snap.freshness.reasons[:3] if snap else [f"circuit {circuit}"]
@@ -108,9 +107,15 @@ async def health(request: Request) -> HealthReport:
     else:
         components.append(ComponentHealth(name="Simulator", status="healthy"))
 
-    components.append(ComponentHealth(
-        name="Operational state", status="healthy" if snap and not snap.freshness.stale else
-        ("degraded" if snap else "down"), detail=None if snap else "no successful sync yet"))
+    ages = [r.age_seconds for r in snap.freshness.resources.values() if r.age_seconds is not None] if snap else []
+    oldest = max(ages) if ages else None
+    if snap is None:
+        components.append(ComponentHealth(name="Operational state", status="down", detail="no successful sync yet"))
+    elif snap.freshness.stale or (oldest is not None and oldest > STATE_MAX_AGE_SECONDS):
+        components.append(ComponentHealth(name="Operational state", status="degraded",
+                                          detail=f"oldest data {oldest:.0f}s old" if oldest else "stale"))
+    else:
+        components.append(ComponentHealth(name="Operational state", status="healthy"))
     components.append(ComponentHealth(
         name="Event stream", status="healthy" if svc.sync.sse_connected else "degraded",
         detail=None if svc.sync.sse_connected else "SSE down, polling REST"))
@@ -123,7 +128,6 @@ async def health(request: Request) -> HealthReport:
             worst = "down"
         elif c.status in ("down", "degraded") and worst == "healthy":
             worst = "degraded"
-    ages = [r.age_seconds for r in snap.freshness.resources.values() if r.age_seconds is not None] if snap else []
     return HealthReport(status=worst, components=components, tick=snap.tick if snap else None,
-                        snapshot_age_seconds=max(ages) if ages else None, version=svc.settings.deployment_version,
+                        snapshot_age_seconds=oldest, version=svc.settings.deployment_version,
                         active_policy=svc.policy.active, pacer_running=svc.pacer.running)

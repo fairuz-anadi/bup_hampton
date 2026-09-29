@@ -31,7 +31,8 @@ services:
 
   backend:
     build:
-      context: ./backend
+      context: .
+      dockerfile: backend/Dockerfile
       args:
         DEPLOYMENT_VERSION: ${DEPLOYMENT_VERSION:-dev}
     environment:

@@ -41,6 +41,26 @@ The writer enforces all of this again before posting (`PRECHECK_*` codes), so a 
 5. When the Twin horizon has passed, the backend reads actual unmet demand from the simulator. It moves the record to
    `verified` with `twin_check = {predicted_l, actual_l, error_l}`, and exports `fuelguard_twin_error_liters`.
 
+## How the intelligence lane is wired in
+
+`backend/app/decisions/engine.py` calls `IntelligenceService.evaluate_and_recommend(snapshot, demand_history)`
+without touching `backend/app/intel/`:
+- It imports either `app.intel` or `backend.app.intel`, so both import styles work. An import error shows as
+  "Decision engine: down" in health instead of crashing the backend.
+- It runs in a worker thread, one run at a time, with a 5 s budget (`INTEL_TIMEOUT_SECONDS`).
+- It converts the result through `model_dump` → `model_validate`, so the two copies of `contracts.py` don't clash.
+- It fills in what the review flow needs: `candidates` (noop / greedy-v1 / lp-v2 from the Twin futures), `label`,
+  `built_on_stale_data`, `fallback_used`, `versions`.
+- Demand history is **not** passed yet (`INTEL_USE_DEMAND_HISTORY=false`), because the intel code reads `demand` /
+  `fuel` while the API returns `demand_liters` / `fuel_type`. Flip it once that's fixed.
+- Python packages the intel code needs go in `backend/requirements-intel.txt`. The Docker image and CI install it.
+- The backend image is built from the repo root and contains `forecaster/`. `/app/backend` is a symlink to `/app`,
+  so `backend.app.*` imports resolve too.
+
+The decision loop runs the engine on every new tick. When a station is at risk and nothing is already waiting
+for review, it registers the recommendation as a `gated` decision for the operator. It never approves anything
+itself. Pending decisions expire after 8 ticks.
+
 ## Hooks for your services
 
 - **Forecaster:** set `FORECASTER_URL=http://forecaster:8090` and the backend adds it to `/api/health` (`GET /health`).

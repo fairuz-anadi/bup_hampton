@@ -46,6 +46,8 @@ class Services:
     policy: PolicySwitch
     engine: DecisionEngine | None = None      # per-tick recommendation -> confidence -> gate (decisions/engine.py)
     explainer: Explainer | None = None        # templates + LangGraph copilot (explain/)
+    # Result of the background /v1/health probe: {"alive", "checked_at", "latency_ms", "pending_since"}
+    sim_probe: dict = field(default_factory=dict)
     demand_cache: dict = field(default_factory=dict)
     # Other lanes register an async health probe here (forecaster, decision engine, copilot).
     health_probes: list[HealthProbe] = field(default_factory=list)
@@ -63,6 +65,7 @@ class Services:
 
     async def start(self, start_sync: bool) -> None:
         await self.repo.start()
+        self._tasks.append(asyncio.create_task(self._probe_loop(), name="sim-health-probe"))
         if start_sync:
             self.sync.start()
             self._tasks.append(asyncio.create_task(self._outcome_loop(), name="outcome-check"))
@@ -88,6 +91,21 @@ class Services:
             except Exception as exc:
                 log_event("decision.outcome_check_failed", error=repr(exc)[:200])
 
+    async def _probe_loop(self) -> None:
+        """One /v1/health probe at a time, every 2 s. /api/health reads the result and never waits on the
+        simulator; a probe that hasn't answered yet shows up as 'slow'."""
+        while True:
+            self.sim_probe["pending_since"] = time.monotonic()
+            started = time.perf_counter()
+            try:
+                await self.client.health()
+                alive = True
+            except Exception:
+                alive = False
+            self.sim_probe.update(alive=alive, checked_at=time.monotonic(), pending_since=None,
+                                  latency_ms=round((time.perf_counter() - started) * 1000, 1))
+            await asyncio.sleep(2.0)
+
 
 def _forecaster_probe(url: str) -> HealthProbe:
     async def forecaster() -> ComponentHealth:
@@ -105,9 +123,10 @@ def _forecaster_probe(url: str) -> HealthProbe:
 def build_services(settings: Settings, transport=None) -> Services:
     breaker = CircuitBreaker(settings.breaker_failure_threshold, settings.breaker_window_seconds,
                              settings.breaker_cooldown_seconds)
-    client = SimulatorClient(settings.simulator_url, timeout=settings.sim_timeout_seconds,
-                             retries=settings.sim_retries, backoff_base=settings.sim_backoff_base_seconds,
-                             breaker=breaker, transport=transport)
+    client = SimulatorClient(settings.simulator_url, read_timeout=settings.sim_timeout_seconds,
+                             connect_timeout=settings.sim_connect_timeout_seconds,
+                             max_concurrency=settings.sim_max_concurrency, retries=settings.sim_retries,
+                             backoff_base=settings.sim_backoff_base_seconds, breaker=breaker, transport=transport)
     store = StateStore(client)
     writer = AllocationWriter(client, store)
     repo = DecisionRepo(settings.database_url or None, settings.db_buffer_path)

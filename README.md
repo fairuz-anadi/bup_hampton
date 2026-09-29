@@ -79,6 +79,9 @@ described in [docs/backend-integration.md](docs/backend-integration.md).
 | GET | `/api/state/in-transit` | PENDING + IN_TRANSIT legs |
 | GET | `/api/demand-history` | Proxied, cached per tick, last good copy while the simulator is down |
 | GET | `/api/health` | Component health, version, active policy; tells "simulator faulted" from "down" |
+| POST | `/api/recommendations?policy=` | Dry run of the decision engine (detect → forecast → risk → LP/greedy → Twin) |
+| GET | `/api/recommendations/latest` | Last engine result |
+| GET/POST | `/api/policy-runs` | Policy Gauntlet results |
 | GET/POST | `/api/decisions` | History / register a recommendation for review |
 | POST | `/api/decisions/{id}/approve` · `/reject` | Human review; approve can carry modified legs |
 | POST | `/api/allocations` · `/api/allocations/{id}/cancel` | Direct writes with pre-checks and idempotency keys |
@@ -107,9 +110,12 @@ Every POST/PUT needs `X-Operator-Key`. With no key configured, writes are disabl
 | Postgres down | Decisions keep working; records buffer in memory + JSONL and flush on reconnect | smoke test `--docker` |
 | Shipment that would destroy fuel | Blocked before posting (tank overflow incl. in-transit; disruption at departure) | smoke + unit tests |
 | Retried approval / POST | Idempotency keys; 0 duplicates under load | `e2e-submit` |
+| Client abandoning a simulator request | Never happens: 30 s read timeout, ≤4 requests in flight, no retry on read timeout. An abandoned request leaks a simulator DB connection, and 15 of them hang it for good | 5 s `latency` fault test |
 
-See [docs/hour-one.md](docs/hour-one.md) for the simulator behaviour behind these rules, and
-[docs/load-test.md](docs/load-test.md) for measured limits.
+See [docs/hour-one.md](docs/hour-one.md) for the simulator behaviour behind these rules,
+[docs/load-test.md](docs/load-test.md) for measured limits, [docs/architecture.md](docs/architecture.md) for the
+diagrams, [docs/crisis-rehearsal.md](docs/crisis-rehearsal.md) for every crisis run through the full stack, and
+[gauntlet/results/latest.md](gauntlet/results/latest.md) for the Policy Gauntlet on the official simulator.
 
 ## Development
 
@@ -118,11 +124,13 @@ python -m venv .venv && .venv/Scripts/pip install -r backend/requirements-dev.tx
 cd backend && ../.venv/Scripts/python -m pytest -q && ../.venv/Scripts/ruff check app tests
 ```
 
-Against a running stack (both reset the simulator):
+Against a running stack (all of these reset the simulator):
 
 ```bash
 python scripts/backend_smoke.py --key <OPERATOR_KEY> --docker
 python scripts/run_loadtest.py dashboard-read -e VUS=200
+python scripts/gauntlet_official.py --ticks 288        # policies vs each other on every crisis scenario
+python scripts/rehearse_crises.py                      # detect / respond / safe / recover for every crisis
 ```
 
 ### Operator UI

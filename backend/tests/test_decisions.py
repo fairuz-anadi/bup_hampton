@@ -78,6 +78,16 @@ async def test_reject_and_stale_guard(svc, fake_sim):
     assert fake_sim.posted == {}
 
 
+async def test_stale_reviewable_decisions_expire(svc):
+    await svc.create(recommendation("old", tick=0))
+    await svc.create(recommendation("fresh", tick=10))
+    await svc.create(recommendation("future", tick=50))  # from a run before a reset
+    assert await svc.expire_stale(current_tick=12, ttl_ticks=8) == 2
+    assert svc.repo.get("old").approval["by"] == "system"
+    assert "reset" in svc.repo.get("future").approval["reason"]
+    assert svc.repo.get("fresh").stage == "projected"
+
+
 async def test_outcome_check_scores_the_twin(svc, fake_sim):
     await svc.create(recommendation(predicted=200.0))
     await svc.approve("rec-1", by="anadi", reason=None)

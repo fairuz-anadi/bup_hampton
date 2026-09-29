@@ -70,6 +70,8 @@ class SyncService:
                         self._kick.set()
                     if event == "simulator.notice":
                         log_event("sim.notice", data=_data)
+                        if "reset" in str(_data).lower():
+                            self.store.forget_recent()
                 raise SimulatorError("stream ended")
             except asyncio.CancelledError:
                 raise
