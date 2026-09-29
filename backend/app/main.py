@@ -12,6 +12,7 @@ from fastapi import FastAPI, Request, Response
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
 from app.api.control_routes import router as control_router
+from app.api.gauntlet_routes import router as gauntlet_router
 from app.api.routes import router
 from app.config import Settings, get_settings
 from app.contracts import ComponentHealth
@@ -197,6 +198,7 @@ def create_app(settings: Settings | None = None, services: Services | None = Non
     app.include_router(router)
     app.include_router(control_router)
     app.include_router(decisions_router)
+    app.include_router(gauntlet_router)
     return app
 
 

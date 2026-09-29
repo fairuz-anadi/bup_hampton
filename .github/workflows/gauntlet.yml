@@ -23,6 +23,7 @@ jobs:
       DEPLOYMENT_VERSION: ${{ github.sha }}
       POSTGRES_PASSWORD: ci-${{ github.run_id }}
       GRAFANA_ADMIN_PASSWORD: ci-${{ github.run_id }}
+      AUTOPILOT: "false"  # the Gauntlet drives allocations itself; the engine's autopilot must not interfere
     steps:
       - uses: actions/checkout@v4
       - name: Start stack
