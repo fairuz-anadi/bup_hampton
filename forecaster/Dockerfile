@@ -15,7 +15,9 @@ COPY backend/app/contracts.py ./app/contracts.py
 COPY backend/app/__init__.py ./app/__init__.py
 COPY fixtures ./fixtures
 
-RUN useradd --create-home --uid 10001 fuelguard
+RUN useradd --create-home --uid 10001 fuelguard \
+ && mkdir -p /app/forecaster/models/weights \
+ && chown -R fuelguard /app/forecaster/models/weights
 USER fuelguard
 
 EXPOSE 8090
