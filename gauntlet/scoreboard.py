@@ -3,12 +3,12 @@ FuelGuard Counterfactual Scoreboard (gauntlet/scoreboard.py)
 Generates side-by-side counterfactual comparisons and Policy Gauntlet reports.
 """
 
-from typing import List, Dict, Any
+from typing import Any
 
 
 class Scoreboard:
     @staticmethod
-    def render_markdown_table(eval_result: Dict[str, Any]) -> str:
+    def render_markdown_table(eval_result: dict[str, Any]) -> str:
         sc_id = eval_result.get("scenario_id")
         sc_name = eval_result.get("scenario_name")
         passed = eval_result.get("passed", False)

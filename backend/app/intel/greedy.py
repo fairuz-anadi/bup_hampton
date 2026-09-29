@@ -4,15 +4,15 @@ Deterministic, dependency-free rule-based dispatcher.
 Acts as P0 fallback and counterfactual benchmark in the Policy Gauntlet.
 """
 
-from typing import List, Dict, Tuple
+
 from backend.app.contracts import (
-    NetworkSnapshot,
-    StockoutRisk,
     AllocationLeg,
-    StationStatus,
-    RouteStatus,
     DepotStatus,
     FuelType,
+    NetworkSnapshot,
+    RouteStatus,
+    StationStatus,
+    StockoutRisk,
 )
 
 
@@ -24,14 +24,14 @@ class GreedyPolicy:
     def plan_allocations(
         self,
         snapshot: NetworkSnapshot,
-        risks: List[StockoutRisk],
-    ) -> List[AllocationLeg]:
-        legs: List[AllocationLeg] = []
+        risks: list[StockoutRisk],
+    ) -> list[AllocationLeg]:
+        legs: list[AllocationLeg] = []
 
         # Track remaining depot capacities and available dispatch in this decision step
-        depot_stock: Dict[Tuple[str, str], float] = {}
-        depot_reserves: Dict[Tuple[str, str], float] = {}
-        dispatch_left: Dict[str, float] = {}
+        depot_stock: dict[tuple[str, str], float] = {}
+        depot_reserves: dict[tuple[str, str], float] = {}
+        dispatch_left: dict[str, float] = {}
 
         for d_id, depot in snapshot.depot_map.items():
             if depot.status == DepotStatus.CLOSED:
@@ -46,15 +46,15 @@ class GreedyPolicy:
                 depot_stock[(d_id, fuel_str)] = max(0.0, amt - res)
 
         # Calculate current tank headroom including in-transit
-        station_headroom: Dict[Tuple[str, str], float] = {}
+        station_headroom: dict[tuple[str, str], float] = {}
         for s_id, station in snapshot.station_map.items():
             for f in [FuelType.DIESEL, FuelType.PETROL, FuelType.OCTANE]:
                 cap = station.capacity.get(f.value, 15000.0)
                 inv = station.inventory.get(f.value, 0.0)
                 # Count in-transit already on the way
                 in_transit = sum(
-                    l.quantity for l in snapshot.in_transit
-                    if l.station_id == s_id and l.fuel == f
+                    leg.quantity for leg in snapshot.in_transit
+                    if leg.station_id == s_id and leg.fuel == f
                 )
                 station_headroom[(s_id, f.value)] = max(0.0, cap - (inv + in_transit))
 

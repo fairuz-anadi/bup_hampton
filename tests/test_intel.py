@@ -1,12 +1,21 @@
 """Tests for Decision Intelligence (Detection, Risk, LP, Greedy, Decision Twin)."""
 
 import pytest
+
 from backend.app.contracts import (
-    NetworkSnapshot, Depot, Station, Route, FuelType,
-    RouteStatus, StationStatus, DepotStatus, SupplyArrival, SupplyStatus
+    Depot,
+    DepotStatus,
+    FuelType,
+    NetworkSnapshot,
+    Route,
+    RouteStatus,
+    Station,
+    StationStatus,
 )
 from backend.app.intel import (
-    DetectionEngine, RiskEngine, LPOptimizer, GreedyPolicy, DecisionTwin, IntelligenceService
+    DetectionEngine,
+    GreedyPolicy,
+    IntelligenceService,
 )
 
 
@@ -93,7 +102,6 @@ def test_greedy_fallback(sample_snapshot):
 
 
 def test_decision_twin_counterfactual_futures(sample_snapshot):
-    twin = DecisionTwin(horizon_ticks=24)
     intel = IntelligenceService()
     rec = intel.evaluate_and_recommend(sample_snapshot)
 
@@ -111,7 +119,6 @@ def test_decision_twin_counterfactual_futures(sample_snapshot):
 
 
 def test_twin_verification_loop(sample_snapshot):
-    twin = DecisionTwin(horizon_ticks=24)
     intel = IntelligenceService()
     rec = intel.evaluate_and_recommend(sample_snapshot)
 

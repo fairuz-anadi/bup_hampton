@@ -4,18 +4,18 @@ Monitors demand residual z-scores, CUSUM drift, depletion rate anomalies,
 and status diffs across the fuel network. Pure functions over NetworkSnapshot.
 """
 
-import math
-from typing import List, Dict, Any, Optional
+from typing import Any
+
 from backend.app.contracts import (
-    NetworkSnapshot,
-    DetectionSignal,
-    SignalSeverity,
-    RouteStatus,
-    StationStatus,
     DepotStatus,
+    DetectionSignal,
+    NetworkSnapshot,
+    RouteStatus,
+    SignalSeverity,
+    StationStatus,
     SupplyStatus,
 )
-from forecaster.models.baseline import BaselineForecaster, STATION_PROFILES, PROFILES
+from forecaster.models.baseline import PROFILES, BaselineForecaster
 
 
 class DetectionEngine:
@@ -23,15 +23,15 @@ class DetectionEngine:
         self.z_score_threshold = z_score_threshold
         self.cusum_h = cusum_h
         self.forecaster = BaselineForecaster()
-        self.cusum_state: Dict[str, float] = {}
+        self.cusum_state: dict[str, float] = {}
 
     def detect_signals(
         self,
         snapshot: NetworkSnapshot,
-        demand_history: Optional[List[Dict[str, Any]]] = None,
-        previous_snapshot: Optional[NetworkSnapshot] = None,
-    ) -> List[DetectionSignal]:
-        signals: List[DetectionSignal] = []
+        demand_history: list[dict[str, Any]] | None = None,
+        previous_snapshot: NetworkSnapshot | None = None,
+    ) -> list[DetectionSignal]:
+        signals: list[DetectionSignal] = []
         current_tick = snapshot.tick
 
         # 1. State Diffs: Route disruptions
@@ -95,7 +95,10 @@ class DetectionEngine:
                     type="shipment_delay",
                     severity=SignalSeverity.WARNING,
                     target_id=arr.depot_id,
-                    message=f"Supply arrival {arr.id} to {arr.depot_id} ({arr.fuel}) delayed to tick {arr.arrival_tick}.",
+                    message=(
+                        f"Supply arrival {arr.id} to {arr.depot_id} ({arr.fuel}) "
+                        f"delayed to tick {arr.arrival_tick}."
+                    ),
                     value=float(arr.arrival_tick - arr.planned_tick),
                     threshold=1.0,
                     detected_at_tick=current_tick,
@@ -109,7 +112,7 @@ class DetectionEngine:
                 fuel = entry.get("fuel", "PETROL")
                 actual = entry.get("demand", entry.get("quantity", 0.0))
                 t = entry.get("tick", current_tick)
-                
+
                 if not s_id or s_id not in snapshot.station_map:
                     continue
 
@@ -129,12 +132,16 @@ class DetectionEngine:
                 self.cusum_state[key] = max(0.0, self.cusum_state.get(key, 0.0) + (diff - slack))
 
                 if z_score >= self.z_score_threshold:
+                    msg = (
+                        f"Demand anomaly at {s_id} ({fuel}): observed={actual:.1f}L, "
+                        f"expected={expected:.1f}L, z-score={z_score:.2f}."
+                    )
                     signals.append(DetectionSignal(
                         id=f"sig-zscore-{s_id}-{fuel}-{t}",
                         type="demand_anomaly",
                         severity=SignalSeverity.CRITICAL if z_score > 4.5 else SignalSeverity.WARNING,
                         target_id=s_id,
-                        message=f"Demand anomaly at {s_id} ({fuel}): observed={actual:.1f}L, expected={expected:.1f}L, z-score={z_score:.2f}.",
+                        message=msg,
                         value=round(z_score, 2),
                         threshold=self.z_score_threshold,
                         detected_at_tick=current_tick,
@@ -146,7 +153,10 @@ class DetectionEngine:
                         type="persistent_demand_drift",
                         severity=SignalSeverity.WARNING,
                         target_id=s_id,
-                        message=f"Persistent upward demand drift at {s_id} ({fuel}): CUSUM={self.cusum_state[key]:.1f}.",
+                        message=(
+                            f"Persistent upward demand drift at {s_id} ({fuel}): "
+                            f"CUSUM={self.cusum_state[key]:.1f}."
+                        ),
                         value=round(self.cusum_state[key], 1),
                         threshold=round(self.cusum_h * sigma, 1),
                         detected_at_tick=current_tick,

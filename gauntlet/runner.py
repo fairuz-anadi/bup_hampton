@@ -4,22 +4,22 @@ Executes deterministic simulation replays comparing Candidate (lp-v2)
 against Baseline (greedy-v1) and No-Op across standardized crisis scenarios.
 """
 
-import os
+from typing import Any
+
 import yaml
-from copy import deepcopy
-from typing import Dict, List, Any, Tuple
+
 from backend.app.contracts import (
-    NetworkSnapshot,
     Depot,
-    Station,
-    Route,
-    SupplyArrival,
-    InTransitLeg,
-    SimulatorEvent,
-    FuelType,
-    RouteStatus,
-    StationStatus,
     DepotStatus,
+    FuelType,
+    InTransitLeg,
+    NetworkSnapshot,
+    Route,
+    RouteStatus,
+    SimulatorEvent,
+    Station,
+    StationStatus,
+    SupplyArrival,
     SupplyStatus,
 )
 from backend.app.intel import IntelligenceService
@@ -97,13 +97,13 @@ class PolicyGauntletRunner:
     def __init__(self):
         self.intel = IntelligenceService()
 
-    def load_scenario(self, scenario_path: str) -> Dict[str, Any]:
+    def load_scenario(self, scenario_path: str) -> dict[str, Any]:
         with open(scenario_path, "r", encoding="utf-8") as f:
             return yaml.safe_load(f)
 
     def run_simulation(
-        self, scenario: Dict[str, Any], policy_mode: str
-    ) -> Dict[str, Any]:
+        self, scenario: dict[str, Any], policy_mode: str
+    ) -> dict[str, Any]:
         """
         Executes a deterministic multi-tick simulation under policy_mode:
         - 'noop': Zero allocations
@@ -119,7 +119,7 @@ class PolicyGauntletRunner:
         allocation_failures = 0
         fallback_activations = 0
 
-        in_transit_ledger: List[InTransitLeg] = []
+        in_transit_ledger: list[InTransitLeg] = []
 
         for current_tick in range(duration_ticks):
             snapshot.tick = current_tick
@@ -274,7 +274,7 @@ class PolicyGauntletRunner:
             "fallback_activations": fallback_activations,
         }
 
-    def evaluate_scenario(self, scenario_path: str) -> Dict[str, Any]:
+    def evaluate_scenario(self, scenario_path: str) -> dict[str, Any]:
         scenario = self.load_scenario(scenario_path)
 
         res_noop = self.run_simulation(scenario, "noop")

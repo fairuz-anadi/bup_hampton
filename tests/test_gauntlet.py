@@ -1,6 +1,5 @@
 """Tests for Policy Gauntlet Replay Runner and Scoreboard."""
 
-import pytest
 from gauntlet.runner import PolicyGauntletRunner
 from gauntlet.scoreboard import Scoreboard
 

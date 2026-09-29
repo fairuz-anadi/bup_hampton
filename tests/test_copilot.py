@@ -2,13 +2,21 @@
 
 import pytest
 from dotenv import load_dotenv
+
 load_dotenv("/Users/turjo/Desktop/bup_hampton/.env")
 
 from backend.app.contracts import (
-    NetworkSnapshot, Depot, Station, Route, RouteStatus, StationStatus, DepotStatus, AutonomyMode
+    AutonomyMode,
+    Depot,
+    DepotStatus,
+    NetworkSnapshot,
+    Route,
+    RouteStatus,
+    Station,
+    StationStatus,
 )
-from backend.app.intel import IntelligenceService
 from backend.app.copilot import CopilotService, DeterministicCopilot
+from backend.app.intel import IntelligenceService
 
 
 @pytest.fixture

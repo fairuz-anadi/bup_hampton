@@ -5,20 +5,18 @@ Minimizes weighted projected shortages while balancing route transit times
 and tank overfill penalties. Supports crisis containment mode.
 """
 
-from typing import List, Dict, Tuple, Optional
 import numpy as np
-from scipy.optimize import linprog
-
 from backend.app.contracts import (
-    NetworkSnapshot,
-    StockoutRisk,
     AllocationLeg,
-    StationStatus,
-    RouteStatus,
     DepotStatus,
     FuelType,
+    NetworkSnapshot,
+    RouteStatus,
+    StationStatus,
+    StockoutRisk,
 )
 from backend.app.intel.greedy import GreedyPolicy
+from scipy.optimize import linprog
 
 
 class LPOptimizer:
@@ -36,9 +34,9 @@ class LPOptimizer:
     def optimize_allocations(
         self,
         snapshot: NetworkSnapshot,
-        risks: List[StockoutRisk],
+        risks: list[StockoutRisk],
         containment_mode: bool = False,
-    ) -> Tuple[List[AllocationLeg], bool, str]:
+    ) -> tuple[list[AllocationLeg], bool, str]:
         """
         Executes HiGHS LP solver. Returns (legs, is_fallback, policy_name).
         Falls back seamlessly to greedy-v1 on infeasibility or solver exception.
@@ -54,9 +52,9 @@ class LPOptimizer:
     def _solve_lp(
         self,
         snapshot: NetworkSnapshot,
-        risks: List[StockoutRisk],
+        risks: list[StockoutRisk],
         containment_mode: bool,
-    ) -> List[AllocationLeg]:
+    ) -> list[AllocationLeg]:
         routes = list(snapshot.route_map.values())
         fuels = [FuelType.DIESEL, FuelType.PETROL, FuelType.OCTANE]
         stations = list(snapshot.station_map.values())
@@ -70,7 +68,6 @@ class LPOptimizer:
         num_routes = len(routes)
         num_fuels = len(fuels)
         num_stations = len(stations)
-        num_depots = len(depots)
 
         n_x = num_routes * num_fuels
         n_short = num_stations * num_fuels
@@ -132,15 +129,15 @@ class LPOptimizer:
         b_ub = []
 
         # Risk mapping for station shortages
-        shortage_map: Dict[Tuple[str, str], float] = {}
+        shortage_map: dict[tuple[str, str], float] = {}
         for r in risks:
             shortage_map[(r.station_id, r.fuel.value)] = r.projected_shortage_liters
 
         # In-transit sum per station/fuel
-        in_transit_map: Dict[Tuple[str, str], float] = {}
-        for l in snapshot.in_transit:
-            key = (l.station_id, l.fuel.value)
-            in_transit_map[key] = in_transit_map.get(key, 0.0) + l.quantity
+        in_transit_map: dict[tuple[str, str], float] = {}
+        for leg in snapshot.in_transit:
+            key = (leg.station_id, leg.fuel.value)
+            in_transit_map[key] = in_transit_map.get(key, 0.0) + leg.quantity
 
         # 1. Shortage constraint:
         # short[s, f] >= Need - inTransit - sum_r(x[r, f])
@@ -181,7 +178,7 @@ class LPOptimizer:
 
         # 3. Depot inventory & reserve constraint:
         # sum_{r: d->*, f} x[r, f] <= inv[d, f] - reserve[d, f]
-        for d_i, depot in enumerate(depots):
+        for depot in depots:
             if depot.status == DepotStatus.CLOSED:
                 for f_i in range(num_fuels):
                     for r_i, route in enumerate(routes):
@@ -205,7 +202,7 @@ class LPOptimizer:
 
         # 4. Depot dispatch capacity per tick constraint:
         # sum_{r: d->*, all f} x[r, f] <= dispatchCap[d]
-        for d_i, depot in enumerate(depots):
+        for depot in depots:
             row = np.zeros(total_vars)
             cap_tick = depot.dispatch_capacity_per_tick if depot.status != DepotStatus.CLOSED else 0.0
 
@@ -230,7 +227,7 @@ class LPOptimizer:
             raise RuntimeError(f"HiGHS solver failed: {res.message}")
 
         # Extract allocations and split into legs <= max_shipment
-        legs: List[AllocationLeg] = []
+        legs: list[AllocationLeg] = []
         for r_i, route in enumerate(routes):
             for f_i, fuel in enumerate(fuels):
                 qty = res.x[x_idx(r_i, f_i)]

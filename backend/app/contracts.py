@@ -15,9 +15,9 @@ Sections:
 """
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 from enum import StrEnum
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -545,7 +545,7 @@ class DecisionRecord(_Model):
     """One important recommendation through its whole lifecycle. Grows stage by stage."""
     decision_id: str
     sim_tick: int
-    created_at: datetime | str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    created_at: datetime | str = Field(default_factory=lambda: datetime.now(UTC).isoformat())
     stage: Literal["observed", "predicted", "candidates", "projected", "gated", "approved", "rejected",
                    "submitted", "outcome", "verified"] = "observed"
     versions: dict[str, str] = Field(default_factory=dict)

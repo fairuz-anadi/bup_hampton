@@ -4,8 +4,9 @@ Tracks model versions, benchmarks validation loss, and provides
 an in-process fallback predictor.
 """
 
-from typing import Dict, Any, Optional, List
-from backend.app.contracts import FuelType, ForecastRequest, ForecastResponse
+from typing import Any
+
+from backend.app.contracts import ForecastRequest, ForecastResponse, FuelType
 from forecaster.models.baseline import BaselineForecaster
 from forecaster.models.lgbm_quantile import LGBMQuantileForecaster
 
@@ -19,12 +20,12 @@ class ModelRegistry:
             "fc-v2": self.v2,
         }
         self.active_model_name = default_model
-        self.metrics: Dict[str, Dict[str, float]] = {
+        self.metrics: dict[str, dict[str, float]] = {
             "fc-v1": {"mae": 52.4, "pinball_p10": 14.2, "pinball_p90": 15.1, "promoted": True},
             "fc-v2": {"mae": 44.8, "pinball_p10": 11.7, "pinball_p90": 12.3, "promoted": True},
         }
 
-    def get_model(self, name: Optional[str] = None):
+    def get_model(self, name: str | None = None):
         target = name or self.active_model_name
         return self.models.get(target, self.v1)
 
@@ -34,7 +35,7 @@ class ModelRegistry:
             return True
         return False
 
-    def predict(self, req: ForecastRequest, model_name: Optional[str] = None) -> ForecastResponse:
+    def predict(self, req: ForecastRequest, model_name: str | None = None) -> ForecastResponse:
         model = self.get_model(model_name)
         try:
             return model.predict(
@@ -45,7 +46,7 @@ class ModelRegistry:
                 demand_history=req.demand_history,
                 demand_multiplier=req.demand_multiplier,
             )
-        except Exception:
+        except Exception:  # noqa: BLE001
             # Automatic in-process fallback to v1 on any failure
             return self.v1.predict(
                 station_id=req.station_id,
@@ -66,7 +67,7 @@ def fallback_predict(
     fuel: FuelType,
     horizon_ticks: int = 24,
     current_tick: int = 0,
-    demand_history: Optional[List[Dict[str, Any]]] = None,
+    demand_history: list[dict[str, Any]] | None = None,
     demand_multiplier: float = 1.0,
 ) -> ForecastResponse:
     """

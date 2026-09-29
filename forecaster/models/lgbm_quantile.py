@@ -5,11 +5,18 @@ Predicts p10, p50 (mean), and p90 using gradient-boosted trees.
 
 import os
 import random
-import numpy as np
+from typing import Any
+
 import lightgbm as lgb
-from typing import List, Dict, Any, Optional
-from backend.app.contracts import FuelType, ForecastBand, ForecastResponse
-from forecaster.models.baseline import BaselineForecaster, STATION_PROFILES, PROFILES, tick_to_sim_hour
+import numpy as np
+
+from backend.app.contracts import ForecastBand, ForecastResponse, FuelType
+from forecaster.models.baseline import (
+    PROFILES,
+    STATION_PROFILES,
+    BaselineForecaster,
+    tick_to_sim_hour,
+)
 
 
 class LGBMQuantileForecaster:
@@ -17,11 +24,11 @@ class LGBMQuantileForecaster:
     Forecaster v2: Uses LightGBM trained with quantile objective (alpha=0.1, 0.5, 0.9).
     Falls back gracefully to fc-v1 if insufficient historical data or models untrained.
     """
-    def __init__(self, model_dir: Optional[str] = None):
+    def __init__(self, model_dir: str | None = None):
         self.version = "fc-v2"
         self.model_dir = model_dir or os.path.join(os.path.dirname(__file__), "weights")
         self.baseline = BaselineForecaster()
-        self.models: Dict[float, Optional[lgb.Booster]] = {0.1: None, 0.5: None, 0.9: None}
+        self.models: dict[float, lgb.Booster | None] = {0.1: None, 0.5: None, 0.9: None}
         self.is_trained = False
         os.makedirs(self.model_dir, exist_ok=True)
         self._load_or_train_initial()
@@ -29,7 +36,7 @@ class LGBMQuantileForecaster:
     def _extract_features(
         self, profile: str, fuel: str, tick: int, demand_multiplier: float,
         lag_1: float, lag_4: float, rolling_mean_8: float
-    ) -> List[float]:
+    ) -> list[float]:
         hour = tick_to_sim_hour(tick)
         day_of_week = (tick // 96) % 7
         prof_idx = ["urban_high", "industrial", "highway", "regional"].index(profile) if profile in ["urban_high", "industrial", "highway", "regional"] else 0
@@ -57,7 +64,7 @@ class LGBMQuantileForecaster:
         np.random.seed(42)
 
         for day in range(num_days):
-            for station_id, profile in STATION_PROFILES.items():
+            for profile in STATION_PROFILES.values():
                 for fuel in ["DIESEL", "PETROL", "OCTANE"]:
                     noise_pct = PROFILES[profile]["noise"]
                     lag_1 = 0.0
@@ -117,7 +124,7 @@ class LGBMQuantileForecaster:
         fuel: FuelType,
         horizon_ticks: int = 24,
         current_tick: int = 0,
-        demand_history: Optional[List[Dict[str, Any]]] = None,
+        demand_history: list[dict[str, Any]] | None = None,
         demand_multiplier: float = 1.0,
     ) -> ForecastResponse:
         if not self.is_trained or any(m is None for m in self.models.values()):
@@ -126,7 +133,7 @@ class LGBMQuantileForecaster:
             )
 
         profile = STATION_PROFILES.get(station_id, "urban_high")
-        bands: List[ForecastBand] = []
+        bands: list[ForecastBand] = []
 
         # Derive initial lags from history or baseline
         history_vals = []

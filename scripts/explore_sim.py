@@ -1,5 +1,9 @@
 """Explore the BUP fuel simulator: allocation lifecycle, do-nothing baseline, simple rule policy."""
-import json, sys, time, urllib.request, urllib.error
+import json
+import sys
+import time
+import urllib.error
+import urllib.request
 
 B = "http://localhost:8000"
 TICKS = int(sys.argv[1]) if len(sys.argv) > 1 else 288  # 288 ticks = 3 sim days
@@ -53,7 +57,7 @@ def run(policy, name):
     print("final depots:", json.dumps(depots))
     print("final stations:", json.dumps(stations))
     # unmet demand by station/fuel from demand history
-    hist = get("/v1/demand-history?limit=2000")
+    _ = get("/v1/demand-history?limit=2000")
     return m
 
 

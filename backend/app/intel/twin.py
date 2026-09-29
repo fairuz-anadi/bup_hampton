@@ -5,30 +5,30 @@ computes counterfactual unmet demand avoided, and implements the self-checking
 verification loop against official simulator outcomes.
 """
 
-from typing import List, Dict, Tuple, Optional, Any
-from copy import deepcopy
+from typing import Any
+
 from backend.app.contracts import (
-    NetworkSnapshot,
     AllocationLeg,
-    TwinFuture,
-    StationFuture,
-    FuelType,
     ForecastResponse,
+    FuelType,
+    NetworkSnapshot,
+    StationFuture,
+    TwinFuture,
 )
 
 
 class DecisionTwin:
     def __init__(self, horizon_ticks: int = 24):
         self.horizon_ticks = horizon_ticks
-        self.recorded_projections: Dict[str, TwinFuture] = {}
+        self.recorded_projections: dict[str, TwinFuture] = {}
 
     def project_candidate_future(
         self,
         candidate_id: str,
         name: str,
-        legs: List[AllocationLeg],
+        legs: list[AllocationLeg],
         snapshot: NetworkSnapshot,
-        forecasts: Dict[Tuple[str, str], ForecastResponse],
+        forecasts: dict[tuple[str, str], ForecastResponse],
         notes: str = "",
     ) -> TwinFuture:
         """
@@ -39,9 +39,9 @@ class DecisionTwin:
         horizon = self.horizon_ticks
 
         # Initialize station inventories
-        sim_inv: Dict[Tuple[str, str], float] = {}
-        min_inv: Dict[Tuple[str, str], float] = {}
-        unmet_by_station: Dict[Tuple[str, str], float] = {}
+        sim_inv: dict[tuple[str, str], float] = {}
+        min_inv: dict[tuple[str, str], float] = {}
+        unmet_by_station: dict[tuple[str, str], float] = {}
 
         for s_id, station in snapshot.station_map.items():
             for fuel in [FuelType.DIESEL, FuelType.PETROL, FuelType.OCTANE]:
@@ -51,7 +51,7 @@ class DecisionTwin:
                 unmet_by_station[(s_id, fuel.value)] = 0.0
 
         # Existing in-transit shipments
-        arrivals_schedule: Dict[Tuple[str, str, int], float] = {}
+        arrivals_schedule: dict[tuple[str, str, int], float] = {}
         for leg in snapshot.in_transit:
             k = (leg.station_id, leg.fuel.value, leg.arrival_tick)
             arrivals_schedule[k] = arrivals_schedule.get(k, 0.0) + leg.quantity
@@ -99,7 +99,7 @@ class DecisionTwin:
                         min_inv[(s_id, fuel.value)] = sim_inv[(s_id, fuel.value)]
 
         # Compile station outcomes
-        station_outcomes: List[StationFuture] = []
+        station_outcomes: list[StationFuture] = []
         for s_id in snapshot.station_map.keys():
             for fuel in [FuelType.DIESEL, FuelType.PETROL, FuelType.OCTANE]:
                 station_outcomes.append(StationFuture(
@@ -123,10 +123,10 @@ class DecisionTwin:
     def project_three_futures(
         self,
         snapshot: NetworkSnapshot,
-        forecasts: Dict[Tuple[str, str], ForecastResponse],
-        greedy_legs: List[AllocationLeg],
-        lp_legs: List[AllocationLeg],
-    ) -> List[TwinFuture]:
+        forecasts: dict[tuple[str, str], ForecastResponse],
+        greedy_legs: list[AllocationLeg],
+        lp_legs: list[AllocationLeg],
+    ) -> list[TwinFuture]:
         """
         Projects three futures side by side:
         1. noop: Do nothing (zero allocations)
@@ -170,7 +170,7 @@ class DecisionTwin:
         decision_id: str,
         actual_snapshot: NetworkSnapshot,
         actual_unmet_liters: float,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Self-checking Twin verification loop (§5):
         Evaluates predicted network unmet liters against actual simulator outcome.

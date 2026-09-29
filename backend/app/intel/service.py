@@ -4,25 +4,22 @@ Connects Detection -> Forecasting -> Risk -> LP Optimizer / Greedy -> Decision T
 Generates fully inspectable Recommendation objects conforming to contracts.py.
 """
 
+import datetime
 import os
 import uuid
-import datetime
-import httpx
-from typing import List, Dict, Tuple, Optional, Any
+from typing import Any
 
+import httpx
 from backend.app.contracts import (
+    ForecastResponse,
+    FuelType,
     NetworkSnapshot,
     Recommendation,
-    StockoutRisk,
-    DetectionSignal,
-    FuelType,
-    ForecastRequest,
-    ForecastResponse,
 )
 from backend.app.intel.detection import DetectionEngine
-from backend.app.intel.risk import RiskEngine
-from backend.app.intel.lp import LPOptimizer
 from backend.app.intel.greedy import GreedyPolicy
+from backend.app.intel.lp import LPOptimizer
+from backend.app.intel.risk import RiskEngine
 from backend.app.intel.twin import DecisionTwin
 from forecaster.registry import fallback_predict
 
@@ -30,7 +27,7 @@ from forecaster.registry import fallback_predict
 class IntelligenceService:
     def __init__(
         self,
-        forecaster_url: Optional[str] = None,
+        forecaster_url: str | None = None,
         horizon_ticks: int = 24,
     ):
         self.forecaster_url = forecaster_url or os.getenv("FORECASTER_URL", "http://localhost:8001")
@@ -46,7 +43,7 @@ class IntelligenceService:
         station_id: str,
         fuel: FuelType,
         current_tick: int,
-        demand_history: Optional[List[Dict[str, Any]]],
+        demand_history: list[dict[str, Any]] | None,
         demand_multiplier: float,
     ) -> ForecastResponse:
         """Tries HTTP forecaster service first with breaker; seamlessly falls back to in-process predictor."""
@@ -86,11 +83,11 @@ class IntelligenceService:
     def evaluate_and_recommend(
         self,
         snapshot: NetworkSnapshot,
-        demand_history: Optional[List[Dict[str, Any]]] = None,
+        demand_history: list[dict[str, Any]] | None = None,
         force_containment: bool = False,
     ) -> Recommendation:
         rec_id = f"rec-{uuid.uuid4().hex[:8]}"
-        created_at = datetime.datetime.now(datetime.timezone.utc).isoformat()
+        created_at = datetime.datetime.now(datetime.UTC).isoformat()
         current_tick = snapshot.tick
 
         # 1. Detection
@@ -103,7 +100,7 @@ class IntelligenceService:
         )
 
         # 2. Forecasting across all (station, fuel) pairs
-        forecasts: Dict[Tuple[str, str], ForecastResponse] = {}
+        forecasts: dict[tuple[str, str], ForecastResponse] = {}
         for s_id, station in snapshot.station_map.items():
             for f in [FuelType.DIESEL, FuelType.PETROL, FuelType.OCTANE]:
                 fc = self._get_forecast(
@@ -155,7 +152,7 @@ class IntelligenceService:
         human_review_required = (
             confidence < 0.80
             or containment_warranted
-            or any(l.quantity_liters > 5000.0 for l in lp_legs)
+            or any(leg.quantity_liters > 5000.0 for leg in lp_legs)
             or snapshot.is_stale
         )
 

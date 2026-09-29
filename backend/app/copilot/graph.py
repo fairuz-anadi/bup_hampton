@@ -5,36 +5,45 @@ and full observability via LangSmith tracing.
 """
 
 import os
-from typing import TypedDict, List, Optional, Any
-from langchain_openai import ChatOpenAI
-from langchain_core.messages import SystemMessage, HumanMessage
-from langgraph.graph import StateGraph, START, END
+from typing import TypedDict
 
 from backend.app.contracts import (
-    Recommendation,
-    NetworkSnapshot,
     ExplainResponse,
+    NetworkSnapshot,
+    Recommendation,
     RouteStatus,
     StationStatus,
 )
 from backend.app.copilot.fallback import DeterministicCopilot
+from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_openai import ChatOpenAI
+from langgraph.graph import END, START, StateGraph
 
 
 class CopilotState(TypedDict):
     snapshot: NetworkSnapshot
     recommendation: Recommendation
-    query: Optional[str]
-    facts: List[str]
+    query: str | None
+    facts: list[str]
     playbook: str
     explanation_text: str
-    response: Optional[ExplainResponse]
+    response: ExplainResponse | None
 
 
 # Crisis playbooks reference (§7)
 PLAYBOOKS = {
-    "demand_spike": "Demand spike detected: Prioritize high-throughput urban routes. Avoid drawing depot below reserve.",
-    "route_disruption": "Route disruption detected: Reroute shipments to secondary corridors if available. If single-route station, engage containment.",
-    "station_outage": "Station outage active: Halt dispatches to closed station; conserve fuel for post-recovery surge.",
+    "demand_spike": (
+        "Demand spike detected: Prioritize high-throughput urban routes. "
+        "Avoid drawing depot below reserve."
+    ),
+    "route_disruption": (
+        "Route disruption detected: Reroute shipments to secondary corridors if available. "
+        "If single-route station, engage containment."
+    ),
+    "station_outage": (
+        "Station outage active: Halt dispatches to closed station; "
+        "conserve fuel for post-recovery surge."
+    ),
     "depot_constraint": "Depot constraint active: Throttle dispatches, balance allocations with peer depot.",
     "shipment_delay": "Supply arrival delayed: Extend rationing horizon; preserve station safety buffers.",
     "normal": "Standard operations: Maintain optimal tank headroom and minimize long-transit routing costs.",
@@ -45,10 +54,11 @@ def node_extract_facts(state: CopilotState) -> dict:
     """Extracts strictly verified ground-truth facts from the snapshot & recommendation."""
     rec = state["recommendation"]
     snap = state["snapshot"]
-    facts: List[str] = []
+    facts: list[str] = []
 
     # 1. State facts
-    facts.append(f"Simulation Tick: {snap.tick}, Status: {getattr(snap, 'sim_status', getattr(snap, 'status', 'RUNNING'))}")
+    sim_st = getattr(snap, "sim_status", getattr(snap, "status", "RUNNING"))
+    facts.append(f"Simulation Tick: {snap.tick}, Status: {sim_st}")
     for r_id, r in snap.route_map.items():
         if r.status != RouteStatus.AVAILABLE:
             facts.append(f"Disrupted route: {r_id} connecting {r.depot_id} to {r.station_id}")
@@ -116,8 +126,10 @@ def node_generate_explanation(state: CopilotState) -> dict:
         "Your task is to provide clear, concise, inspectable explanations to human grid dispatchers.\n"
         "RULES:\n"
         "1. Strictly adhere to the provided CITED FACTS. Never invent numbers, capacities, or gallons.\n"
-        "2. Wording rule: write 'X L projected unmet demand avoided vs the no-action counterfactual' and never 'FuelGuard saved X L'.\n"
-        "3. Include structured sections: [Operational Rationale], [Cited Facts], [Crisis Playbook Alignment], [Counterfactual Comparison].\n"
+        "2. Wording rule: write 'X L projected unmet demand avoided vs the no-action counterfactual' "
+        "and never 'FuelGuard saved X L'.\n"
+        "3. Include structured sections: [Operational Rationale], [Cited Facts], "
+        "[Crisis Playbook Alignment], [Counterfactual Comparison].\n"
         "4. Keep the tone professional, direct, and actionable."
     )
 

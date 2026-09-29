@@ -4,9 +4,9 @@ Conforms to BUP Fuel Supply Simulator Integration Guide (§8.5, §8.6).
 """
 
 import math
-from typing import List, Dict, Any, Optional
-from backend.app.contracts import FuelType, ForecastBand, ForecastResponse
+from typing import Any
 
+from backend.app.contracts import ForecastBand, ForecastResponse, FuelType
 
 PROFILES = {
     "urban_high": {
@@ -86,7 +86,7 @@ class BaselineForecaster:
         fuel: FuelType,
         horizon_ticks: int = 24,
         current_tick: int = 0,
-        demand_history: Optional[List[Dict[str, Any]]] = None,
+        demand_history: list[dict[str, Any]] | None = None,
         demand_multiplier: float = 1.0,
     ) -> ForecastResponse:
         profile = STATION_PROFILES.get(station_id, "urban_high")
@@ -119,7 +119,7 @@ class BaselineForecaster:
                 else:
                     residual_variance = (residuals[0] * 0.1) ** 2
 
-        bands: List[ForecastBand] = []
+        bands: list[ForecastBand] = []
         nominal_daily = PROFILES[profile][fuel.value]
         nominal_tick = nominal_daily / 96.0
         sigma = math.sqrt(residual_variance) if residual_variance > 0 else (nominal_tick * prof_noise)

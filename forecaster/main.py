@@ -4,6 +4,7 @@ Exposes POST /forecast, health checks, and model promotion endpoints.
 """
 
 from fastapi import FastAPI, HTTPException
+
 from backend.app.contracts import ForecastRequest, ForecastResponse
 from forecaster.registry import GLOBAL_REGISTRY
 
@@ -34,7 +35,7 @@ def generate_forecast(req: ForecastRequest):
         response = GLOBAL_REGISTRY.predict(req)
         return response
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"Forecasting error: {str(exc)}")
+        raise HTTPException(status_code=500, detail=f"Forecasting error: {exc!s}") from exc
 
 
 @app.post("/models/promote")

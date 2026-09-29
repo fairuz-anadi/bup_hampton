@@ -4,13 +4,13 @@ Projects inventory depletion over a forward horizon, incorporating in-transit
 shipments and forecast demand quantiles. Computes time-to-stockout and P(stockout).
 """
 
-from typing import List, Dict, Tuple
+
 from backend.app.contracts import (
-    NetworkSnapshot,
-    StockoutRisk,
-    RiskSeverity,
-    FuelType,
     ForecastResponse,
+    FuelType,
+    NetworkSnapshot,
+    RiskSeverity,
+    StockoutRisk,
 )
 
 
@@ -21,15 +21,15 @@ class RiskEngine:
     def evaluate_risks(
         self,
         snapshot: NetworkSnapshot,
-        forecasts: Dict[Tuple[str, str], ForecastResponse],
+        forecasts: dict[tuple[str, str], ForecastResponse],
         horizon_ticks: int = 24,
-    ) -> List[StockoutRisk]:
-        risks: List[StockoutRisk] = []
+    ) -> list[StockoutRisk]:
+        risks: list[StockoutRisk] = []
         current_tick = snapshot.tick
 
         # Map upcoming in-transit arrivals: (station_id, fuel, arrival_tick) -> quantity
-        in_transit_by_tick: Dict[Tuple[str, str, int], float] = {}
-        total_in_transit: Dict[Tuple[str, str], float] = {}
+        in_transit_by_tick: dict[tuple[str, str, int], float] = {}
+        total_in_transit: dict[tuple[str, str], float] = {}
 
         for leg in snapshot.in_transit:
             key_tick = (leg.station_id, leg.fuel.value, leg.arrival_tick)
@@ -110,5 +110,7 @@ class RiskEngine:
                 ))
 
         # Sort so most critical risks appear first
-        risks.sort(key=lambda r: (r.severity != RiskSeverity.CRITICAL, r.time_to_stockout_ticks, -r.projected_shortage_liters))
+        risks.sort(
+            key=lambda r: (r.severity != RiskSeverity.CRITICAL, r.time_to_stockout_ticks, -r.projected_shortage_liters)
+        )
         return risks

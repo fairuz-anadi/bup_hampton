@@ -3,14 +3,14 @@ FuelGuard Copilot Service (backend/app/copilot/service.py)
 Unified interface for LangGraph explanation copilot and DecisionRecord generation.
 """
 
-import os
-from typing import Optional, Dict, Any
+from typing import Any
+
 from backend.app.contracts import (
-    Recommendation,
-    NetworkSnapshot,
-    ExplainResponse,
-    DecisionRecord,
     AutonomyMode,
+    DecisionRecord,
+    ExplainResponse,
+    NetworkSnapshot,
+    Recommendation,
     RouteStatus,
     StationStatus,
 )
@@ -25,7 +25,7 @@ class CopilotService:
         self,
         recommendation: Recommendation,
         snapshot: NetworkSnapshot,
-        query: Optional[str] = None,
+        query: str | None = None,
     ) -> ExplainResponse:
         inputs = {
             "snapshot": snapshot,
@@ -44,10 +44,10 @@ class CopilotService:
         recommendation: Recommendation,
         snapshot: NetworkSnapshot,
         mode: AutonomyMode = AutonomyMode.SUPERVISED,
-        operator_approval: Optional[Dict[str, Any]] = None,
-        submission_result: Optional[Dict[str, Any]] = None,
-        outcome_result: Optional[Dict[str, Any]] = None,
-        twin_check: Optional[Dict[str, Any]] = None,
+        operator_approval: dict[str, Any] | None = None,
+        submission_result: dict[str, Any] | None = None,
+        outcome_result: dict[str, Any] | None = None,
+        twin_check: dict[str, Any] | None = None,
     ) -> DecisionRecord:
         """Constructs full 9-stage audit snapshot per §12."""
         candidates = []
@@ -76,8 +76,12 @@ class CopilotService:
             mode=mode,
             observed={
                 "tick": snapshot.tick,
-                "routes_available": sum(1 for r in snapshot.routes if getattr(r, 'status', None) in ("AVAILABLE", RouteStatus.AVAILABLE)),
-                "stations_open": sum(1 for s in snapshot.stations if getattr(s, 'status', None) in ("OPEN", StationStatus.OPEN)),
+                "routes_available": sum(
+                    1 for r in snapshot.routes if getattr(r, "status", None) in ("AVAILABLE", RouteStatus.AVAILABLE)
+                ),
+                "stations_open": sum(
+                    1 for s in snapshot.stations if getattr(s, "status", None) in ("OPEN", StationStatus.OPEN)
+                ),
                 "in_transit_count": len(snapshot.in_transit),
             },
             prediction={
