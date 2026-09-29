@@ -7,6 +7,7 @@ failed one keeps its previous value, marked stale with its age.
 from __future__ import annotations
 
 import asyncio
+import time
 from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -23,6 +24,7 @@ RESOURCES = ("instance", "regions", "depots", "stations", "routes", "supply_arri
              "allocations", "metrics")
 REQUIRED = ("instance", "depots", "stations", "routes", "metrics")
 LIVE = ("PENDING", "IN_TRANSIT")
+RECENT_TTL = 15.0  # seconds; the poller sees a new allocation within ~1 s, so this is generous
 
 
 @dataclass
@@ -31,6 +33,7 @@ class _Resource:
     fetched_at: datetime | None = None
     stale: bool = True
     last_error: str | None = None
+    started: float = 0.0  # monotonic start of the fetch that produced the current value
 
 
 @dataclass
@@ -38,8 +41,9 @@ class StateStore:
     client: SimulatorClient
     _res: dict[str, _Resource] = field(default_factory=lambda: {r: _Resource() for r in RESOURCES})
     _snapshot: NetworkSnapshot | None = None
-    _lock: asyncio.Lock = field(default_factory=asyncio.Lock)
     _was_stale: bool = False
+    # Allocations we posted that a fetched list may not show yet (the fetch started before the POST).
+    _recent: dict[str, tuple[float, Allocation]] = field(default_factory=dict)
 
     @property
     def snapshot(self) -> NetworkSnapshot | None:
@@ -51,36 +55,63 @@ class StateStore:
 
     def allocations_by_key(self) -> dict[str, Allocation]:
         """Every allocation the simulator knows about, by idempotency key (includes finished ones)."""
-        return {a.idempotency_key: a for a in (self._res["allocations"].data or [])}
+        return {a.idempotency_key: a for a in self._allocations()}
 
-    async def refresh(self) -> NetworkSnapshot | None:
-        """Fetch every resource concurrently and rebuild the snapshot. Concurrent calls coalesce."""
-        if self._lock.locked():
-            async with self._lock:
-                return self._snapshot
-        async with self._lock:
-            results = await asyncio.gather(*(getattr(self.client, name)() for name in RESOURCES),
-                                            return_exceptions=True)
-            now = datetime.now(UTC)
-            for name, result in zip(RESOURCES, results, strict=True):
-                res = self._res[name]
-                if isinstance(result, BaseException):
-                    if not isinstance(result, SimulatorError):
-                        log_event("state.refresh_bug", resource=name, error=repr(result))
-                    res.stale = True
-                    res.last_error = "circuit open" if isinstance(result, CircuitOpenError) else str(result)[:200]
-                else:
-                    res.data, res.fetched_at, res.stale, res.last_error = result.data, now, result.stale, None
-            if all(self._res[r].data is not None for r in REQUIRED):
-                self._snapshot = self._build(now)
-                self._publish_metrics()
-            return self._snapshot
+    def record_posted(self, alloc: Allocation) -> None:
+        """Called by the writer right after a successful POST.
+
+        GET /v1/allocations returns the whole, ever-growing list and gets slow (140 ms at ~800 rows), so
+        the writer doesn't re-fetch it before every submission. Instead the allocations it posted are
+        merged into every snapshot until a fetched list contains them.
+        """
+        self._recent[alloc.idempotency_key] = (time.monotonic(), alloc)
+        if self._snapshot is not None and all(self._res[r].data is not None for r in REQUIRED):
+            self._snapshot = self._build(datetime.now(UTC))
+
+    def _allocations(self) -> list[Allocation]:
+        fetched: list[Allocation] = self._res["allocations"].data or []
+        if not self._recent:
+            return fetched
+        seen = {a.idempotency_key for a in fetched}
+        now = time.monotonic()
+        # Drop entries the simulator now lists, and any older than RECENT_TTL (e.g. after a reset).
+        for key in [k for k, (at, _) in self._recent.items() if k in seen or now - at > RECENT_TTL]:
+            del self._recent[key]
+        return [a for _, a in self._recent.values()] + fetched
+
+    async def refresh(self, only: tuple[str, ...] | None = None) -> NetworkSnapshot | None:
+        """Fetch resources concurrently and rebuild the snapshot. `only` limits the fetch.
+
+        Fetches are not serialized: a caller that needs fresh data (the allocation writer) never waits
+        behind the poller's slow allocation list. A result is applied only if its fetch started after
+        the one currently stored, so an older response can never overwrite a newer one.
+        """
+        names = only or RESOURCES
+        started = time.monotonic()
+        results = await asyncio.gather(*(getattr(self.client, name)() for name in names), return_exceptions=True)
+        now = datetime.now(UTC)
+        for name, result in zip(names, results, strict=True):
+            res = self._res[name]
+            if started < res.started:
+                continue  # a fetch that began later has already been applied
+            res.started = started
+            if isinstance(result, BaseException):
+                if not isinstance(result, SimulatorError):
+                    log_event("state.refresh_bug", resource=name, error=repr(result))
+                res.stale = True
+                res.last_error = "circuit open" if isinstance(result, CircuitOpenError) else str(result)[:200]
+            else:
+                res.data, res.fetched_at, res.stale, res.last_error = result.data, now, result.stale, None
+        if all(self._res[r].data is not None for r in REQUIRED):
+            self._snapshot = self._build(now)
+            self._publish_metrics()
+        return self._snapshot
 
     # ------------------------------------------------------------------ building
 
     def _build(self, now: datetime) -> NetworkSnapshot:
         inst = self._res["instance"].data
-        allocations: list[Allocation] = self._res["allocations"].data or []
+        allocations = self._allocations()
         legs = [InTransitLeg(allocation_id=a.id, route_id=a.route_id, source_depot_id=a.source_depot_id,
                              station_id=a.destination_station_id, fuel_type=a.fuel_type, quantity=a.quantity,
                              status=a.status, expected_arrival_tick=a.expected_arrival_tick)

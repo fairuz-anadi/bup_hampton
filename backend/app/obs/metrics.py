@@ -22,6 +22,14 @@ SSE_RECONNECTS = Counter("fuelguard_sse_reconnects_total", "SSE stream reconnect
 ALLOCATIONS = Counter("fuelguard_allocations_total", "Allocation legs by result", ["result", "code"])
 FALLBACKS = Counter("fuelguard_fallback_activations_total", "Fallbacks activated", ["component"])
 
+DECISIONS = Counter("fuelguard_decisions_total", "Decision records reaching a stage", ["stage"])
+TWIN_ERROR = Gauge("fuelguard_twin_error_liters", "Latest |projected - actual| network unmet over a decision horizon")
+TWIN_ERROR_HIST = Histogram("fuelguard_twin_error_liters_hist", "Twin error per verified decision",
+                            buckets=(10, 25, 50, 100, 250, 500, 1000, 2500, 5000))
+DB_BUFFERED = Gauge("fuelguard_db_buffered", "Records waiting for the database")
+DB_WRITE_ERRORS = Counter("fuelguard_db_write_errors_total", "Database write failures")
+PACER_RUNNING = Gauge("fuelguard_pacer_running", "1 while the backend pacer is stepping the simulator")
+
 
 def endpoint_label(path: str) -> str:
     """Collapse ids so label cardinality stays small: /v1/stations/station-mirpur -> /v1/stations/{id}."""

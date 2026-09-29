@@ -8,7 +8,7 @@ RUN pip install -r requirements.txt
 
 COPY app ./app
 
-RUN useradd --create-home --uid 10001 fuelguard
+RUN useradd --create-home --uid 10001 fuelguard && mkdir -p /data && chown fuelguard /data
 USER fuelguard
 
 ARG DEPLOYMENT_VERSION=dev

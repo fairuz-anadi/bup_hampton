@@ -19,6 +19,7 @@ from app.state.store import StateStore
 
 # SSE events that mean "the world changed, re-read it".
 REFRESH_EVENTS = {"simulation.tick", "allocation.status_changed", "inventory.updated", "simulator.notice"}
+MIN_REFRESH_GAP = 0.5  # seconds between two poller refreshes, however many events arrive
 
 
 class SyncService:
@@ -47,6 +48,9 @@ class SyncService:
                 await self.store.refresh()
             except Exception as exc:  # never let the loop die
                 log_event("state.poll_error", error=repr(exc))
+            # Every allocation fires SSE events. Without a gap, a burst of them keeps the (single-threaded)
+            # simulator busy serving our full refreshes and slows down everyone's writes.
+            await asyncio.sleep(MIN_REFRESH_GAP)
             try:
                 await asyncio.wait_for(self._kick.wait(), timeout=self.poll_interval)
             except TimeoutError:

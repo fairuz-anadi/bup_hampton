@@ -1,0 +1,70 @@
+{
+  "workload": "e2e-submit",
+  "env": [
+    "VUS=10",
+    "HOLD=60s"
+  ],
+  "started": "2026-09-29T11:39:52.986192",
+  "wall_seconds": 91.9,
+  "thresholds_passed": true,
+  "requests": 7703,
+  "throughput_rps": 85.2,
+  "error_rate": 0,
+  "peak_vus": 10,
+  "latency_ms": {
+    "avg": 97.4,
+    "med": 3.2,
+    "p(95)": 379.3,
+    "p(99)": 524.2,
+    "max": 636.8
+  },
+  "resources": {
+    "backend": {
+      "cpu_peak_pct": 90.7,
+      "mem_peak_mib": 80.8
+    },
+    "grafana": {
+      "cpu_peak_pct": 4.7,
+      "mem_peak_mib": 56.6
+    },
+    "postgres": {
+      "cpu_peak_pct": 9.4,
+      "mem_peak_mib": 35.1
+    },
+    "prometheus": {
+      "cpu_peak_pct": 4.5,
+      "mem_peak_mib": 29.8
+    },
+    "simulator-api": {
+      "cpu_peak_pct": 79.3,
+      "mem_peak_mib": 76.2
+    }
+  },
+  "custom": {
+    "approve_to_submitted": {
+      "avg": 286.46414653156666,
+      "min": 34,
+      "med": 287,
+      "p(90)": 419.5,
+      "p(95)": 483,
+      "p(99)": 567,
+      "max": 636
+    },
+    "checks": {
+      "passes": 7699,
+      "fails": 0,
+      "thresholds": {
+        "rate>0.99": false
+      },
+      "value": 1
+    },
+    "legs_blocked_by_precheck": {
+      "count": 1646,
+      "rate": 18.20552853187899
+    },
+    "legs_accepted": {
+      "rate": 10.175629556092751,
+      "count": 920
+    }
+  }
+}

@@ -6,6 +6,16 @@ on:
   pull_request:
 
 jobs:
+  secret-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   backend-tests:
     runs-on: ubuntu-latest
     defaults:
@@ -25,31 +35,45 @@ jobs:
         run: pytest -q
 
   compose-smoke:
-    # Build -> package -> deploy -> health check -> end-to-end smoke against the official simulator.
-    needs: backend-tests
+    # Build -> package -> deploy -> health check -> end-to-end smoke against the official simulator,
+    # then a short load test so a performance regression shows up in every run.
+    needs: [backend-tests, secret-scan]
     runs-on: ubuntu-latest
     env:
       OPERATOR_KEY: ci-${{ github.run_id }}
       DEPLOYMENT_VERSION: ${{ github.sha }}
+      POSTGRES_PASSWORD: ci-${{ github.run_id }}
+      GRAFANA_ADMIN_PASSWORD: ci-${{ github.run_id }}
     steps:
       - uses: actions/checkout@v4
-      - name: Build images
+      - name: Validate compose file
+        run: docker compose config --quiet
+      - name: Build images (tagged with the git SHA)
         run: docker compose build
       - name: Deploy stack
         run: docker compose up -d
-      - name: Wait for backend health check
+      - name: Wait for health checks
         run: |
-          for i in $(seq 1 60); do
-            status=$(docker inspect bup_hampton-backend-1 --format '{{.State.Health.Status}}' 2>/dev/null || echo none)
-            [ "$status" = "healthy" ] && exit 0
+          for i in $(seq 1 90); do
+            unhealthy=$(docker compose ps --format '{{.Service}} {{.Health}}' | grep -v ' healthy$' || true)
+            [ -z "$unhealthy" ] && { docker compose ps; exit 0; }
             sleep 2
           done
           docker compose ps; docker compose logs backend; exit 1
+      - name: Deployed version matches this commit
+        run: curl -fsS localhost:8080/api/health | python3 -c "import json,sys; v=json.load(sys.stdin)['version']; print(v); sys.exit(v != '${{ github.sha }}')"
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: End-to-end smoke test
-        run: python scripts/backend_smoke.py --key "$OPERATOR_KEY"
+      - name: End-to-end smoke test (incl. database outage)
+        run: python scripts/backend_smoke.py --key "$OPERATOR_KEY" --docker
+      - name: Smoke load test
+        run: python scripts/run_loadtest.py dashboard-read -e VUS=50 -e RAMP=20s -e HOLD=20s --key "$OPERATOR_KEY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: loadtest-results
+          path: loadtest/results/
       - name: Logs on failure
         if: failure()
         run: docker compose logs --tail 200

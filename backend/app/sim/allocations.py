@@ -24,6 +24,8 @@ from app.sim.errors import CircuitOpenError, SimulatorAPIError, SimulatorUnavail
 from app.state.store import StateStore
 
 EPS = 1e-6
+# Resources the pre-check re-reads. Allocations come from the last poll plus our own recent posts.
+WRITE_INPUTS = ("instance", "depots", "stations", "routes", "events")
 # A disruption that starts this close to "now" would catch a shipment at departure.
 DEPARTURE_MARGIN_TICKS = 1
 
@@ -100,7 +102,10 @@ class AllocationWriter:
 
     async def submit(self, decision_id: str, legs: list[AllocationLeg]) -> SubmitAllocationsResponse:
         async with self._lock:
-            snap = await self.store.refresh() or self.store.snapshot
+            # Re-read what the pre-check depends on, fetched after this moment. Our own earlier posts
+            # are merged in by the store (record_posted), so the slow allocation list isn't re-fetched.
+            first = self.store.snapshot is None
+            snap = await self.store.refresh(None if first else WRITE_INPUTS) or self.store.snapshot
             results: list[SubmittedAllocation] = []
             if snap is None or snap.freshness.circuit == "OPEN":
                 for i, leg in enumerate(legs):
@@ -123,7 +128,8 @@ class AllocationWriter:
                     results.append(self._record(leg, key, None, "skipped", check, "Blocked by FuelGuard pre-check."))
                     continue
                 results.append(await self._post(leg, key))
-            await self.store.refresh()
+            # No refresh here: the next submission re-reads before its pre-check, and the poller
+            # updates the UI within a second.
             return SubmitAllocationsResponse(decision_id=decision_id, submissions=results)
 
     async def _post(self, leg: AllocationLeg, key: str) -> SubmittedAllocation:
@@ -132,6 +138,7 @@ class AllocationWriter:
                 idempotency_key=key, source_depot_id=leg.source_depot_id, destination_station_id=leg.station_id,
                 route_id=leg.route_id, fuel_type=leg.fuel_type.value, quantity=leg.quantity)
             # The simulator answers 201 for both a new allocation and an idempotent replay.
+            self.store.record_posted(alloc)
             return self._record(leg, key, 201, "accepted", None, None, alloc.id)
         except SimulatorAPIError as exc:
             return self._record(leg, key, exc.status, "rejected", exc.code, exc.message)

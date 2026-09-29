@@ -1,0 +1,39 @@
+# Public deployment override. Use together with the main file:
+#   docker compose -f docker-compose.yml -f deploy/docker-compose.public.yml up -d --build
+#
+# Only Caddy (80/443) is reachable from the internet. The simulator (and its /admin/* reset and
+# fault endpoints), Postgres and Prometheus are no longer published at all; the backend and
+# Grafana are reachable only through Caddy.
+services:
+  simulator-api:
+    ports: !reset []
+  backend:
+    ports: !reset []
+  postgres:
+    ports: !reset []
+  prometheus:
+    ports: !reset []
+  grafana:
+    ports: !reset []
+    environment:
+      GF_SERVER_ROOT_URL: https://${PUBLIC_HOST:?set PUBLIC_HOST in .env}/grafana/
+      GF_SERVER_SERVE_FROM_SUB_PATH: "true"
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?set GRAFANA_ADMIN_PASSWORD in .env}
+
+  caddy:
+    image: caddy:2.8-alpine
+    environment:
+      PUBLIC_HOST: ${PUBLIC_HOST}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+    depends_on:
+      - backend
+      - grafana
+    restart: unless-stopped
+
+volumes:
+  caddy-data:

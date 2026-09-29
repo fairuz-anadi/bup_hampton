@@ -26,6 +26,14 @@ class Settings(BaseSettings):
     # Approvals, allocation writes and chaos actions need this key. Empty = writes disabled.
     operator_key: SecretStr = SecretStr("")
 
+    # postgresql://user:pass@host:5432/db. Empty = decision history in memory only.
+    database_url: str = ""
+    db_buffer_path: str = "/tmp/fuelguard-buffer.jsonl"
+    # Turjo's forecaster service, e.g. http://forecaster:8090. Empty = not deployed yet.
+    forecaster_url: str = ""
+    default_policy: str = "greedy-v1"
+    outcome_check_seconds: float = Field(2.0, gt=0)
+
     log_level: str = "INFO"
     deployment_version: str = "dev"
 

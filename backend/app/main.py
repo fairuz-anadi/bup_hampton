@@ -1,24 +1,32 @@
 """FuelGuard backend entry point: `uvicorn app.main:app`."""
 from __future__ import annotations
 
+import asyncio
 import time
-from collections.abc import Callable
-from contextlib import asynccontextmanager
+from collections.abc import Awaitable, Callable
+from contextlib import asynccontextmanager, suppress
 from dataclasses import dataclass, field
 
+import httpx
 from fastapi import FastAPI, Request, Response
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
+from app.api.control_routes import router as control_router
 from app.api.routes import router
 from app.config import Settings, get_settings
 from app.contracts import ComponentHealth
+from app.db.repo import DecisionRepo
+from app.decisions.service import DecisionService
 from app.obs.logging import log_event, setup_logging
 from app.obs.metrics import HTTP_LATENCY, HTTP_REQUESTS
+from app.ops.control import Pacer, PolicySwitch
 from app.sim.allocations import AllocationWriter
 from app.sim.breaker import CircuitBreaker
 from app.sim.client import SimulatorClient
 from app.state.store import StateStore
 from app.state.sync import SyncService
+
+HealthProbe = Callable[[], Awaitable[ComponentHealth]]
 
 
 @dataclass
@@ -28,19 +36,60 @@ class Services:
     store: StateStore
     sync: SyncService
     writer: AllocationWriter
+    repo: DecisionRepo
+    decisions: DecisionService
+    pacer: Pacer
+    policy: PolicySwitch
     demand_cache: dict = field(default_factory=dict)
-    # Other lanes register a health probe here, e.g. the forecaster client.
-    health_probes: list[Callable[[], ComponentHealth]] = field(default_factory=list)
+    # Other lanes register an async health probe here (forecaster, decision engine, copilot).
+    health_probes: list[HealthProbe] = field(default_factory=list)
+    _tasks: list[asyncio.Task] = field(default_factory=list)
 
-    def extra_health(self) -> list[ComponentHealth]:
-        out = []
+    async def extra_health(self) -> list[ComponentHealth]:
+        out = [self.repo.health()]
         for probe in self.health_probes:
             try:
-                out.append(probe())
+                out.append(await asyncio.wait_for(probe(), timeout=2))
             except Exception as exc:  # a broken probe must not break /api/health
                 out.append(ComponentHealth(name=getattr(probe, "__name__", "probe"), status="unknown",
                                            detail=repr(exc)[:120]))
         return out
+
+    async def start(self, start_sync: bool) -> None:
+        await self.repo.start()
+        if start_sync:
+            self.sync.start()
+            self._tasks.append(asyncio.create_task(self._outcome_loop(), name="outcome-check"))
+
+    async def stop(self) -> None:
+        for t in self._tasks:
+            t.cancel()
+        await asyncio.gather(*self._tasks, return_exceptions=True)
+        await self.pacer.stop()
+        await self.sync.stop()
+        await self.repo.stop()
+        await self.client.aclose()
+
+    async def _outcome_loop(self) -> None:
+        while True:
+            await asyncio.sleep(self.settings.outcome_check_seconds)
+            try:
+                await self.decisions.check_outcomes()
+            except Exception as exc:
+                log_event("decision.outcome_check_failed", error=repr(exc)[:200])
+
+
+def _forecaster_probe(url: str) -> HealthProbe:
+    async def forecaster() -> ComponentHealth:
+        try:
+            async with httpx.AsyncClient(timeout=1.5) as http:
+                r = await http.get(f"{url.rstrip('/')}/health")
+            if r.status_code == 200:
+                return ComponentHealth(name="Forecaster", status="healthy")
+            return ComponentHealth(name="Forecaster", status="degraded", detail=f"/health {r.status_code}")
+        except httpx.HTTPError as exc:
+            return ComponentHealth(name="Forecaster", status="down", detail=type(exc).__name__)
+    return forecaster
 
 
 def build_services(settings: Settings, transport=None) -> Services:
@@ -50,9 +99,21 @@ def build_services(settings: Settings, transport=None) -> Services:
                              retries=settings.sim_retries, backoff_base=settings.sim_backoff_base_seconds,
                              breaker=breaker, transport=transport)
     store = StateStore(client)
-    return Services(settings=settings, client=client, store=store,
-                    sync=SyncService(store, settings.poll_interval_seconds, settings.sse_enabled),
-                    writer=AllocationWriter(client, store))
+    writer = AllocationWriter(client, store)
+    repo = DecisionRepo(settings.database_url or None, settings.db_buffer_path)
+
+    async def refresh_after_step():
+        with suppress(Exception):
+            await store.refresh()
+
+    svc = Services(settings=settings, client=client, store=store,
+                   sync=SyncService(store, settings.poll_interval_seconds, settings.sse_enabled),
+                   writer=writer, repo=repo,
+                   decisions=DecisionService(repo, writer, store, settings.deployment_version),
+                   pacer=Pacer(client, on_tick=refresh_after_step), policy=PolicySwitch(settings.default_policy))
+    if settings.forecaster_url:
+        svc.health_probes.append(_forecaster_probe(settings.forecaster_url))
+    return svc
 
 
 def create_app(settings: Settings | None = None, services: Services | None = None,
@@ -64,13 +125,12 @@ def create_app(settings: Settings | None = None, services: Services | None = Non
     async def lifespan(app: FastAPI):
         svc = services or build_services(settings)
         app.state.services = svc
-        if start_sync:
-            svc.sync.start()
+        await svc.start(start_sync)
         log_event("backend.started", simulator=settings.simulator_url, version=settings.deployment_version,
-                  writes_enabled=bool(settings.operator_key.get_secret_value()))
+                  writes_enabled=bool(settings.operator_key.get_secret_value()),
+                  database=bool(settings.database_url), forecaster=settings.forecaster_url or None)
         yield
-        await svc.sync.stop()
-        await svc.client.aclose()
+        await svc.stop()
 
     app = FastAPI(title="FuelGuard backend", version=settings.deployment_version, lifespan=lifespan,
                   description="Decision-support backend for the BUP Fuel Supply Simulator. SIMULATED data only.")
@@ -95,6 +155,7 @@ def create_app(settings: Settings | None = None, services: Services | None = Non
                 "note": "SIMULATED environment. No real fuel infrastructure is accessed."}
 
     app.include_router(router)
+    app.include_router(control_router)
     return app
 
 

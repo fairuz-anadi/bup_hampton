@@ -1,6 +1,8 @@
 """Backend HTTP API (/api/*). The frontend and the intelligence lane only talk to this."""
 from __future__ import annotations
 
+import time
+
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 
 from app.api.auth import require_operator
@@ -86,11 +88,17 @@ async def health(request: Request) -> HealthReport:
     components = [ComponentHealth(name="Backend API", status="healthy")]
 
     # Simulator: /v1/health skips fault injection, so "health ok but /v1/* failing" means faulted, not down.
-    try:
-        await svc.client.health()
-        sim_alive = True
-    except SimulatorError:
-        sim_alive = False
+    # The probe result is reused for a second so a busy health page can't hammer the simulator.
+    cached = svc.demand_cache.get("sim_alive")
+    if cached and time.monotonic() - cached[0] < 1.0:
+        sim_alive = cached[1]
+    else:
+        try:
+            await svc.client.health()
+            sim_alive = True
+        except SimulatorError:
+            sim_alive = False
+        svc.demand_cache["sim_alive"] = (time.monotonic(), sim_alive)
     circuit = svc.client.breaker.state
     if not sim_alive:
         components.append(ComponentHealth(name="Simulator", status="down", detail="/v1/health unreachable"))
@@ -106,8 +114,8 @@ async def health(request: Request) -> HealthReport:
     components.append(ComponentHealth(
         name="Event stream", status="healthy" if svc.sync.sse_connected else "degraded",
         detail=None if svc.sync.sse_connected else "SSE down, polling REST"))
-    # Forecaster, decision engine, database and explanation register themselves here as they land.
-    components.extend(svc.extra_health())
+    # Database, plus forecaster / decision engine / explanation once those lanes register probes.
+    components.extend(await svc.extra_health())
 
     worst = "healthy"
     for c in components:
@@ -117,4 +125,5 @@ async def health(request: Request) -> HealthReport:
             worst = "degraded"
     ages = [r.age_seconds for r in snap.freshness.resources.values() if r.age_seconds is not None] if snap else []
     return HealthReport(status=worst, components=components, tick=snap.tick if snap else None,
-                        snapshot_age_seconds=max(ages) if ages else None)
+                        snapshot_age_seconds=max(ages) if ages else None, version=svc.settings.deployment_version,
+                        active_policy=svc.policy.active, pacer_running=svc.pacer.running)
