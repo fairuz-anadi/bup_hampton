@@ -49,3 +49,13 @@ export function chosenFuture(rec: Recommendation): TwinFuture | undefined {
 export const noopFuture = (rec: Recommendation) => recFutures(rec).find((f) => f.candidate_id === 'noop') ?? recFutures(rec)[0];
 export const futureLabel = (f: TwinFuture) => f.label || f.name || f.candidate_id;
 export const futureNotes = (f: TwinFuture) => (Array.isArray(f.notes) ? f.notes : f.notes ? [f.notes] : []);
+
+/** "station-mirpur ... route-gazipur-tongi" in engine messages -> "Mirpur ... Gazipur → Tongi". */
+export function humanize(snap: NetworkSnapshot | null, text: string): string {
+  return text
+    .replace(/\broute-[a-z0-9]+-[a-z0-9]+\b/g, (id) => routeName(snap, id))
+    .replace(/\b(station|depot)-[a-z0-9]+\b/g, (id) => placeName(snap, id))
+    .replace(/\bStation (?=[A-Z])/g, '')
+    .replace(/ -> /g, ' → ')
+    .replace(/ \([^()]+ → [^()]+\)/g, ''); // "(Gazipur → Tongi)" repeats the route name just before it
+}

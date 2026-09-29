@@ -3,7 +3,7 @@ import { api } from '../api/client';
 import { useLive } from '../api/live';
 import type { Fuel } from '../api/types';
 import { FUELS } from '../api/types';
-import { Card, Chip, InventoryBars, Skeleton, fuelColor } from '../components/ui';
+import { BackHead, Card, Chip, InventoryBars, Skeleton, fuelColor } from '../components/ui';
 import { fuelName, hours, litres, placeName, recLegs, routeName } from '../lib/format';
 import { go } from '../lib/router';
 import { ops } from '../api/ops';
@@ -33,9 +33,10 @@ export function StationScreen({ id }: { id?: string }) {
 
   return (
     <div className="stack" style={{ gap: 14 }}>
+      <BackHead back="#/" label="Overview" title={placeName(snap, st.id)} sub="Stock, fuel on the way, risk, supply routes and observed demand for one station." />
       <div className="row" role="tablist" aria-label="Stations">
         {snap.stations.map((s) => (
-          <button key={s.id} role="tab" aria-selected={s.id === st.id} className={`btn sm ${s.id === st.id ? 'primary' : ''}`} onClick={() => go(`/station/${s.id}`)}>{placeName(snap, s.id)}</button>
+          <button key={s.id} role="tab" aria-selected={s.id === st.id} className={`btn sm ${s.id === st.id ? 'dark' : ''}`} onClick={() => go(`/station/${s.id}`)}>{placeName(snap, s.id)}</button>
         ))}
       </div>
       <div className="mc">

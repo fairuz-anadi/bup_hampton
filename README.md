@@ -133,9 +133,11 @@ npm run dev          # http://localhost:5173, proxies /api to BACKEND_URL (defau
 npm run build        # type-check + production build into dist/
 ```
 
-Screens: Mission Control, Network, Stations, Recommendation (+ Decision Twin, confidence, autonomy state machine,
-scoreboard), Crises (playbooks + incident report), History (audit + replay), System Health, Chaos Lab (locked
-behind the operator key). With no backend reachable the UI shows the shared fixtures labelled **Mock data**
+Four pages tell one story (what is happening → what is at risk → what the system recommends → why → what if I act):
+**Overview** (KPIs, live network, what needs attention), **Intelligence** (Detect → Predict → Decide → Simulate →
+Approve, each with its evidence, plus decision confidence and the autonomy state machine), **Simulation Lab** (run a
+scenario and watch the response chain; faults, simulator controls, policy switch, incident report; operator key) and
+**System Health**, plus an **Architecture** page. Station, network and decision-history pages are drill-downs. With no backend reachable the UI shows the shared fixtures labelled **Mock data**
 (`?mock=1` forces it); if the backend drops after being live, it keeps the last snapshot with its age and pauses
 approvals.
 

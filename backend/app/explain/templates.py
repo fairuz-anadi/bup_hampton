@@ -38,9 +38,29 @@ def name(snap: NetworkSnapshot | None, sid: str | None) -> str:
     return sid.split("-", 1)[-1].replace("coxsbazar", "Cox's Bazar").title()
 
 
+_ROUTE_ID = re.compile(r"\broute-([a-z0-9]+)-([a-z0-9]+)\b")
+_PLACE_ID = re.compile(r"\b(?:station|depot)-[a-z0-9]+\b")
+
+
+def humanize(snap: NetworkSnapshot | None, text: str) -> str:
+    """Engine messages use ids ("station-mirpur", "route-gazipur-tongi"); operators read names."""
+    text = _ROUTE_ID.sub(lambda m: f"{name(snap, 'depot-' + m.group(1))} → {name(snap, 'station-' + m.group(2))}",
+                         text)
+    text = _PLACE_ID.sub(lambda m: name(snap, m.group(0)), text)
+    text = re.sub(r"\bStation (?=[A-Z])", "", text).replace(" -> ", " → ")
+    return re.sub(r" \([^()]+ → [^()]+\)", "", text)  # "(Gazipur → Tongi)" repeats the route just named
+
+
 def _hours(r) -> float | None:
     h = r.hours_to_stockout
     return None if h is None or h >= 99 else h
+
+
+def _has_backup(snap: NetworkSnapshot | None, r) -> bool:
+    """Count the routes into the station; the risk item's own flag is only a fallback."""
+    if snap is not None and snap.routes:
+        return sum(1 for route in snap.routes if route.station_id == r.station_id) > 1
+    return r.has_backup_route
 
 
 def _response(lines: list[str], cited: list[str], conf: float = 1.0, sep: str = "\n\n") -> ExplainResponse:
@@ -64,10 +84,11 @@ def decision_facts(rec: Recommendation, snap: NetworkSnapshot | None, gate: dict
         "confidence": rec.confidence,
         "legs": [{"route": leg.route_id, "from": name(snap, leg.source_depot_id), "to": name(snap, leg.station_id),
                   "fuel": str(leg.fuel_type), "litres": leg.quantity} for leg in selected_legs(rec)],
-        "signals": [{"kind": s.kind, "severity": s.severity, "message": s.message} for s in rec.signals],
+        "signals": [{"kind": s.kind, "severity": s.severity, "message": humanize(snap, s.message)}
+                    for s in rec.signals],
         "risks": [{"station": name(snap, r.station_id), "fuel": str(r.fuel_type), "hours": _hours(r),
-                   "p_stockout": r.p_stockout, "backup_route": r.has_backup_route} for r in rec.risks[:4]],
-        "constraints": constraints_of(rec),
+                   "p_stockout": r.p_stockout, "backup_route": _has_backup(snap, r)} for r in rec.risks[:4]],
+        "constraints": [humanize(snap, c) for c in constraints_of(rec)],
         "futures": [{"id": f.candidate_id, "label": f.label or f.name or f.candidate_id,
                      "unmet_l": f.network_unmet_liters, "service_level": f.service_level,
                      "first_stockout_tick": f.first_stockout_tick,
@@ -90,7 +111,7 @@ def explain_decision(f: dict) -> ExplainResponse:
     lines: list[str] = []
     legs = f["legs"]
     if legs:
-        parts = [f"{_l(x['litres'])} {x['fuel'].lower()} {x['from']} → {x['to']} ({x['route']})" for x in legs]
+        parts = [f"{_l(x['litres'])} {x['fuel'].lower()} {x['from']} → {x['to']}" for x in legs]
         lines.append("**Recommend.** " + cite("Send " + "; ".join(parts) + "."))
     else:
         lines.append("**Recommend.** " + cite("No shipment this tick. Nothing we could send would reduce the "

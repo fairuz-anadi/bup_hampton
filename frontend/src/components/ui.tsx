@@ -99,3 +99,17 @@ export function RichText({ text }: { text: string }) {
 export const Skeleton = ({ lines = 3 }: { lines?: number }) => (
   <div className="stack" style={{ gap: 8 }}>{Array.from({ length: lines }, (_, i) => <div key={i} className="skeleton" style={{ width: `${90 - i * 15}%` }} />)}</div>
 );
+
+/** Header for drill-down pages: a way back to the main page they belong to. */
+export function BackHead({ back, label, title, sub, right }: { back: string; label: string; title: ReactNode; sub?: ReactNode; right?: ReactNode }) {
+  return (
+    <div className="page-head">
+      <div>
+        <a href={back} className="link" style={{ marginBottom: 10 }}>← {label}</a>
+        <h1>{title}</h1>
+        {sub && <p>{sub}</p>}
+      </div>
+      {right}
+    </div>
+  );
+}

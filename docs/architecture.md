@@ -92,23 +92,27 @@ flowchart LR
 
 ## Operator UI
 
-Eight screens, all driven by one 2-second poll of cached backend state (the UI never calls the simulator):
+The UI is built around the story a judge or operator needs, not around every field the backend has:
+what is happening → what is at risk → what the system recommends → why → what happens if I act.
+All pages share one 2-second poll of cached backend state (the UI never calls the simulator).
 
-- **Mission Control** answers the seven operator questions on one screen: are we OK, what is going wrong, what is
-  likely, what should we do, why, what if we do nothing, is our system healthy.
-- **Network**: map of depots, stations and routes with disruptions, shipments in transit and the recommended route.
-- **Stations**: inventory vs capacity with fuel in transit, stockout risk, routes in, observed demand, and the
-  copilot's answer about that station.
-- **Recommendation**: plan with approve / modify / reject, gate reasons, confidence factors, the autonomy state
-  machine, explanation with follow-up questions, three Twin futures, the counterfactual scoreboard, signals, risks,
-  constraints.
-- **Crises**: active and scheduled events with their playbook, and an incident report on demand.
-- **History**: every decision record, replayable stage by stage from observation to Twin verification.
-- **System Health**: components, deployment version, active policy, pacer, copilot and tracing status, simulator
-  circuit, per-resource freshness.
-- **Chaos Lab** (operator key): inject any of the six crisis events or five simulator faults, disable or kill the
-  forecaster, pause / step / run / pace / reset the simulator, switch or roll back the policy, and watch the live
-  reaction (mode, confidence, freshness, circuit, health) and the event / fault timeline.
+- **Overview**: four numbers (service level, stations at risk, active events, system mode), the live network map with
+  each station's status, and a short "Needs attention" list. When nothing is wrong it says so.
+- **Intelligence** (the hero page): the current recommendation as five steps, each showing input → finding → output.
+  Detect (recent demand vs its normal band, detector signals), Predict (time to stockout, probability, projected
+  inventory), Decide (recommended action, evidence, constraint checks, copilot explanation), Simulate (Decision Twin:
+  without action vs with the recommendation), Approve (approve / modify / reject through the confidence gate). The
+  confidence pill opens the six factors, the autonomy state machine, and re-arm / manual controls.
+- **Simulation Lab**: run a demand spike, station outage, route disruption or stream failure (and every other event,
+  fault and forecaster failure under "More scenarios"). The lab advances a paused simulator itself and shows a live
+  chain: injected → active → detected → predicted → allocation generated → waiting for review, each step checked
+  against real state. Simulator controls, policy switch / rollback, timeline and the incident report live here.
+  Locked behind the operator key.
+- **System Health**: one headline, the components with their fallbacks, API p95 / error rate / last sync, and recent
+  activity; deployment, freshness and copilot / tracing details on demand.
+- **Architecture**: this pipeline as a diagram, and what happens when each part fails.
+- Drill-downs: a station (stock, routes, demand chart, ask the copilot), network details, and decision history with
+  a stage-by-stage replay.
 
 Failure states are explicit: a sticky "Simulated environment" strip on every screen; red banner when the backend is
 unreachable (last snapshot with its age, approvals paused) or data is stale (recommend only); amber when the simulator

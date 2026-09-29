@@ -1,9 +1,9 @@
 import { useLive } from '../api/live';
 import { FUELS } from '../api/types';
-import { Card, Chip, InventoryBars, Skeleton } from '../components/ui';
+import { BackHead, Card, Chip, InventoryBars, Skeleton } from '../components/ui';
 import { NetworkMap } from '../components/NetworkMap';
 import { eventName, fuelName, litres, placeName, recLegs, routeName } from '../lib/format';
-import { describeEvent } from './MissionControl';
+import { describeEvent, stationStates } from '../lib/derive';
 import { go } from '../lib/router';
 
 export function NetworkScreen() {
@@ -12,10 +12,12 @@ export function NetworkScreen() {
   const legs = current?.recommendation ? recLegs(current.recommendation) : [];
   const upcoming = snap.supply_arrivals.filter((a) => a.status === 'SCHEDULED' || a.status === 'DELAYED').sort((a, b) => (a.actual_tick ?? a.planned_tick) - (b.actual_tick ?? b.planned_tick)).slice(0, 8);
   return (
+    <>
+    <BackHead back="#/" label="Overview" title="Network details" sub="Depots, stations, routes, disruptions and incoming supply." />
     <div className="mc">
       <Card className="s8 pad-0">
         <div style={{ padding: '14px 16px 0' }} className="stack"><span className="q">Network</span><h3>Depots, stations and routes at tick {snap.tick}</h3></div>
-        <div style={{ padding: '6px 10px 12px' }}><NetworkMap snap={snap} highlight={legs.map((l) => l.route_id)} onStation={(id) => go(`/station/${id}`)} /></div>
+        <div style={{ padding: '6px 10px 12px' }}><NetworkMap snap={snap} states={stationStates(snap, current?.recommendation ?? null)} highlight={legs.map((l) => l.route_id)} onStation={(id) => go(`/station/${id}`)} /></div>
       </Card>
       <div className="s4 stack" style={{ gap: 14 }}>
         <Card q="Events" title="Disruptions">
@@ -80,5 +82,6 @@ export function NetworkScreen() {
         </table></div>
       </Card>
     </div>
+    </>
   );
 }

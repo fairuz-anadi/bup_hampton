@@ -3,7 +3,7 @@ import { api } from '../api/client';
 import { useLive } from '../api/live';
 import type { DecisionRecord } from '../api/types';
 import { mockDecisions } from '../mocks';
-import { Card, Chip, ModeChip, Skeleton, confTone, type Tone } from '../components/ui';
+import { BackHead, Card, Chip, ModeChip, Skeleton, confTone, type Tone } from '../components/ui';
 import { Futures, GateSummary } from '../components/Decision';
 import { Replay } from '../components/Replay';
 import { Scoreboard } from '../components/Scoreboard';
@@ -31,6 +31,8 @@ export function HistoryScreen() {
   const counts = rows.reduce<Record<string, number>>((m, r) => ({ ...m, [r.stage]: (m[r.stage] ?? 0) + 1 }), {});
 
   return (
+    <>
+    <BackHead back="#/intelligence" label="Intelligence" title="Decision history" sub="Every recommendation through its lifecycle. Pick one and replay it stage by stage." />
     <div className="mc">
       <Card className="s7" q="Audit" title="Decision history" right={<span className="xsmall faint">{Object.entries(counts).map(([k, v]) => `${v} ${stageLabel(k)}`).join(' · ')}</span>}>
         {rows.length === 0 ? <p className="empty">No decisions yet. A record appears when the engine recommends a shipment.</p> : (
@@ -54,6 +56,7 @@ export function HistoryScreen() {
       <div className="s5">{chosen && <RecordDetail r={chosen} />}</div>
       <div className="s12"><Scoreboard /></div>
     </div>
+    </>
   );
 }
 

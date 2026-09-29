@@ -1,7 +1,8 @@
 import type { NetworkSnapshot } from '../api/types';
 import { FUELS } from '../api/types';
 import { placeName } from '../lib/format';
-import { fuelColor } from './ui';
+import { fuelColor, toneColor } from './ui';
+import type { StationState } from '../lib/derive';
 
 const W = 760, NODE_W = 170, NODE_H = 58, DX = 40, SX = W - NODE_W - 40;
 
@@ -12,7 +13,7 @@ const bez = (p0: Pt, p1: Pt, p2: Pt, p3: Pt, t: number): Pt => {
 };
 
 /** Depots on the left, stations on the right, grouped by region. Everything comes from the snapshot. */
-export function NetworkMap({ snap, highlight = [], onStation }: { snap: NetworkSnapshot; highlight?: string[]; onStation?: (id: string) => void }) {
+export function NetworkMap({ snap, highlight = [], onStation, states }: { snap: NetworkSnapshot; highlight?: string[]; onStation?: (id: string) => void; states?: Record<string, StationState> }) {
   const regionOrder = snap.regions.map((r) => r.id);
   const byRegion = <T extends { region_id: string; id: string }>(xs: T[]) =>
     [...xs].sort((a, b) => regionOrder.indexOf(a.region_id) - regionOrder.indexOf(b.region_id) || a.id.localeCompare(b.id));
@@ -95,9 +96,9 @@ export function NetworkMap({ snap, highlight = [], onStation }: { snap: NetworkS
         })}
         {depots.map((d) => (
           <g key={d.id} transform={`translate(${DX},${dPos[d.id]})`}>
-            <rect width={NODE_W} height={NODE_H} rx={8} fill="url(#hatch)" stroke={d.status === 'OPEN' ? 'var(--ink-3)' : 'var(--warn)'} strokeWidth={1.5} />
-            <text x={10} y={20} style={{ font: '600 13px var(--f-display)', fill: 'var(--ink)' }}>{placeName(snap, d.id)} depot</text>
-            <text x={10} y={36} style={{ font: '500 10px var(--f-mono)', fill: d.status === 'OPEN' ? 'var(--ink-3)' : 'var(--warn)' }}>
+            <rect width={NODE_W} height={NODE_H} rx={12} fill="var(--dark)" stroke={d.status === 'OPEN' ? 'var(--dark)' : 'var(--warn)'} strokeWidth={1.5} />
+            <text x={10} y={20} style={{ font: '600 13px var(--f-display)', fill: 'var(--on-dark)' }}>{placeName(snap, d.id)} depot</text>
+            <text x={10} y={36} style={{ font: '500 10px var(--f-mono)', fill: d.status === 'OPEN' ? 'var(--on-dark-2)' : 'var(--warn)' }}>
               {d.status} · {Math.round(d.dispatch_capacity_per_tick / 1000)}k L/tick
             </text>
             <MiniBars inv={d.inventory} cap={d.capacity} x={10} y={44} />
@@ -106,15 +107,22 @@ export function NetworkMap({ snap, highlight = [], onStation }: { snap: NetworkS
         {stations.map((s) => {
           const one = routesTo(s.id) === 1;
           const empty = FUELS.some((f) => (s.inventory[f] ?? 0) <= 0.5);
-          const stroke = s.status !== 'OPEN' ? 'var(--crit)' : empty ? 'var(--crit)' : 'var(--line)';
+          const st = states?.[s.id];
+          const stroke = st ? (st.tone === 'ok' ? 'var(--line)' : toneColor(st.tone)) : s.status !== 'OPEN' || empty ? 'var(--crit)' : 'var(--line)';
           return (
             <g key={s.id} className="node" transform={`translate(${SX},${stPos[s.id]})`} onClick={() => onStation?.(s.id)}
               role="link" tabIndex={0} onKeyDown={(e) => e.key === 'Enter' && onStation?.(s.id)} aria-label={`Open ${placeName(snap, s.id)}`}>
-              <rect width={NODE_W} height={NODE_H} rx={8} fill={s.status !== 'OPEN' ? 'var(--crit-bg)' : 'var(--surface)'} stroke={stroke} strokeWidth={1.5} />
+              <rect width={NODE_W} height={NODE_H} rx={12} fill={s.status !== 'OPEN' ? 'var(--crit-bg)' : 'var(--surface)'} stroke={stroke} strokeWidth={1.5} />
               <text x={10} y={20} style={{ font: '600 13px var(--f-display)', fill: 'var(--ink)' }}>{placeName(snap, s.id)}</text>
-              <text x={10} y={36} style={{ font: '500 10px var(--f-mono)', fill: s.status !== 'OPEN' ? 'var(--crit)' : 'var(--ink-3)' }}>
-                {s.status === 'OPEN' ? `×${s.demand_multiplier.toFixed(1)} demand` : 'OUTAGE'}{one ? ' · 1 route' : ''}
-              </text>
+              {st ? (
+                <text x={10} y={36} style={{ font: '600 10.5px var(--f-body)', fill: toneColor(st.tone) }}>
+                  ● {st.label}<tspan style={{ fill: 'var(--ink-3)', fontWeight: 500 }}>{one ? ' · 1 route' : ''}{s.demand_multiplier > 1.05 ? ` · ×${s.demand_multiplier.toFixed(1)}` : ''}</tspan>
+                </text>
+              ) : (
+                <text x={10} y={36} style={{ font: '500 10px var(--f-mono)', fill: s.status !== 'OPEN' ? 'var(--crit)' : 'var(--ink-3)' }}>
+                  {s.status === 'OPEN' ? `×${s.demand_multiplier.toFixed(1)} demand` : 'OUTAGE'}{one ? ' · 1 route' : ''}
+                </text>
+              )}
               <MiniBars inv={s.inventory} cap={s.capacity} x={10} y={44} />
             </g>
           );

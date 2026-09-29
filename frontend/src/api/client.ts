@@ -10,15 +10,27 @@ export const operatorKey = {
   set: (k: string) => { try { sessionStorage.setItem(KEY_STORE, k); } catch { /* private mode */ } },
 };
 
+// Every API call this browser makes: latency and outcome, for the System Health page (last 200 calls).
+export interface CallStat { ms: number; ok: boolean; at: number }
+const STATS: CallStat[] = [];
+export function callStats(): { p95: number | null; errorRate: number | null; n: number } {
+  if (!STATS.length) return { p95: null, errorRate: null, n: 0 };
+  const ms = STATS.map((s) => s.ms).sort((a, b) => a - b);
+  return { p95: ms[Math.min(ms.length - 1, Math.floor(ms.length * 0.95))], errorRate: STATS.filter((s) => !s.ok).length / STATS.length, n: STATS.length };
+}
+const record = (ms: number, ok: boolean) => { STATS.push({ ms, ok, at: Date.now() }); if (STATS.length > 200) STATS.shift(); };
+
 export async function call<T>(path: string, init: RequestInit & { operator?: boolean } = {}, timeoutMs = 6000): Promise<T> {
   const ctl = new AbortController();
   const timer = setTimeout(() => ctl.abort(), timeoutMs);
   const headers: Record<string, string> = { Accept: 'application/json' };
   if (init.body) headers['Content-Type'] = 'application/json';
   if (init.operator) headers['X-Operator-Key'] = operatorKey.get();
+  const started = performance.now();
   try {
     const res = await fetch(path, { ...init, headers, signal: ctl.signal });
     const body = await res.json().catch(() => null);
+    record(performance.now() - started, res.status < 500);
     if (!res.ok) {
       const d = body?.detail;
       const code = typeof d === 'object' && d ? d.code ?? 'ERROR' : 'HTTP_' + res.status;
@@ -28,6 +40,7 @@ export async function call<T>(path: string, init: RequestInit & { operator?: boo
     return body as T;
   } catch (e) {
     if (e instanceof ApiError) throw e;
+    record(performance.now() - started, false);
     throw new ApiError(0, 'UNREACHABLE', e instanceof Error && e.name === 'AbortError' ? 'Request timed out' : 'Backend unreachable');
   } finally {
     clearTimeout(timer);
