@@ -14,6 +14,7 @@ docker compose up -d --build
 
 | Service | URL |
 |---|---|
+| **Operator UI (Mission Control)** | http://localhost:3000 |
 | Backend API docs | http://localhost:8080/docs |
 | Backend health | http://localhost:8080/api/health |
 | Grafana (Operations, Intelligence, Load test dashboards) | http://localhost:3001 (anonymous read-only; admin / `GRAFANA_ADMIN_PASSWORD`) |
@@ -46,7 +47,9 @@ backend/            FastAPI backend
   app/contracts.py  shared Pydantic contracts: the source of truth for every lane
   app/sim/          simulator client, circuit breaker, allocation writer
   app/state/        last-known-good snapshot, in-transit ledger, REST poller + SSE listener
-  app/decisions/    decision lifecycle, human review, outcome + Twin verification
+  app/decisions/    decision lifecycle, human review, outcome + Twin verification (service.py);
+                    per-tick engine, confidence gate, autonomy modes, guardrails, autopilot (engine.py, gate.py)
+  app/explain/      copilot: template explanations + LangGraph layer, faithfulness check, eval dataset
   app/db/           Postgres repo with outage buffering
   app/ops/          demo pacer, policy switch / rollback
   app/api/          /api/* routes, operator-key auth, Chaos Lab proxy
@@ -57,8 +60,13 @@ loadtest/           k6 workloads and recorded results
 deploy/             public deployment (Caddy HTTPS, VM setup) and Cloudflare Tunnel notes
 fixtures/           recorded simulator data + example contracts for building against mocks
 scripts/            smoke test, load-test runner, hour-one checks, fixture recorder
-docs/               hour-one findings, load-test report, integration guide
+frontend/           React + TypeScript operator UI (Vite; nginx in Docker), mock-first
+docs/               architecture, assumptions, data usage, demo script, hour-one findings, load-test report,
+                    integration guide
 ```
+
+Start with [docs/architecture.md](docs/architecture.md), then [docs/assumptions.md](docs/assumptions.md),
+[docs/data.md](docs/data.md) and the [demo script](docs/demo-script.md).
 
 The forecaster (`forecaster/`), intelligence (`backend/app/intel/`) and frontend (`frontend/`) lanes plug in as
 described in [docs/backend-integration.md](docs/backend-integration.md).
@@ -78,6 +86,11 @@ described in [docs/backend-integration.md](docs/backend-integration.md).
 | GET | `/api/chaos/timeline` | Recent events and faults |
 | GET/POST | `/api/pacer` | Step the simulator at a human pace for demos |
 | GET/PUT | `/api/policy`, POST `/api/policy/rollback` | Active policy and rollback |
+| GET | `/api/recommendations/current` | Recommendation for the current tick + confidence gate + autonomy mode |
+| GET/POST | `/api/autonomy`, `/api/autonomy/rearm`, `/api/autonomy/mode` | Mode, confidence factors, transition log; re-arm / step down |
+| POST | `/api/explain` · `/api/copilot/investigate` · `/api/copilot/summary` | Copilot (read-only): explain a decision, ask about a station, summarize |
+| GET | `/api/copilot/incident-report?from_tick=&to_tick=` · `/api/copilot/info` | Incident report from events + decisions; copilot / tracing status |
+| GET | `/api/scoreboard` | Counterfactual scoreboard (projected) + verified Twin error |
 | GET | `/metrics` | Prometheus |
 
 Every POST/PUT needs `X-Operator-Key`. With no key configured, writes are disabled (fail closed).
@@ -110,6 +123,38 @@ Against a running stack (both reset the simulator):
 ```bash
 python scripts/backend_smoke.py --key <OPERATOR_KEY> --docker
 python scripts/run_loadtest.py dashboard-read -e VUS=200
+```
+
+### Operator UI
+
+```bash
+cd frontend && npm install
+npm run dev          # http://localhost:5173, proxies /api to BACKEND_URL (default http://localhost:8080)
+npm run build        # type-check + production build into dist/
+```
+
+Screens: Mission Control, Network, Stations, Recommendation (+ Decision Twin, confidence, autonomy state machine,
+scoreboard), Crises (playbooks + incident report), History (audit + replay), System Health, Chaos Lab (locked
+behind the operator key). With no backend reachable the UI shows the shared fixtures labelled **Mock data**
+(`?mock=1` forces it); if the backend drops after being live, it keeps the last snapshot with its age and pauses
+approvals.
+
+### Without Docker
+
+```bash
+python scripts/fake_simulator.py     # dev-only stand-in for the simulator on :8000 (NOT for any reported number)
+python scripts/dev_backend.py        # backend on :8080 with the intelligence lane importable; creates .env if missing
+cd frontend && npm run dev
+```
+
+The fake simulator supports `/admin/step|run|pause|toggle|reset`, all six `/admin/events` types and all five
+`/admin/faults` types, so the Chaos Lab works end to end.
+
+### Copilot evaluation
+
+```bash
+python scripts/copilot_eval.py               # faithfulness dataset: templates, or the LLM when OPENAI_API_KEY is set
+python scripts/copilot_eval.py --langsmith   # also upload the dataset and record an experiment (LANGSMITH_API_KEY)
 ```
 
 CI (`.github/workflows/ci.yml`): secret scan (gitleaks) → lint + unit tests → build images tagged with the git SHA →

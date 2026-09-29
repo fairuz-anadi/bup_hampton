@@ -25,6 +25,14 @@ services:
       DATABASE_URL: postgresql://fuelguard:${POSTGRES_PASSWORD:-fuelguard}@postgres:5432/fuelguard
       DB_BUFFER_PATH: /data/buffer.jsonl
       FORECASTER_URL: ${FORECASTER_URL:-}
+      # Copilot (optional): without OPENAI_API_KEY explanations come from templates.
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      COPILOT_MODEL: ${COPILOT_MODEL:-gpt-4o-mini}
+      LANGSMITH_TRACING: ${LANGSMITH_TRACING:-false}
+      LANGSMITH_ENDPOINT: ${LANGSMITH_ENDPOINT:-https://api.smith.langchain.com}
+      LANGSMITH_API_KEY: ${LANGSMITH_API_KEY:-}
+      LANGSMITH_PROJECT: ${LANGSMITH_PROJECT:-FuelGuard}
+      AUTOPILOT: ${AUTOPILOT:-true}
       POLL_INTERVAL_SECONDS: ${POLL_INTERVAL_SECONDS:-1}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
     volumes:
@@ -37,6 +45,16 @@ services:
       # Not service_healthy on purpose: the backend runs (and buffers decisions) without the database.
       postgres:
         condition: service_started
+    restart: on-failure
+
+  # Operator UI (Mission Control). nginx serves the build and proxies /api/ to the backend,
+  # so one hostname serves both (deploy/Caddyfile routes / to frontend:80).
+  frontend:
+    build: ./frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
     restart: on-failure
 
   postgres:

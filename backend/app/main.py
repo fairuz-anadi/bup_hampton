@@ -16,7 +16,11 @@ from app.api.routes import router
 from app.config import Settings, get_settings
 from app.contracts import ComponentHealth
 from app.db.repo import DecisionRepo
+from app.decisions.engine import DecisionEngine
+from app.decisions.routes import components, demand_history
+from app.decisions.routes import router as decisions_router
 from app.decisions.service import DecisionService
+from app.explain.service import Explainer
 from app.obs.logging import log_event, setup_logging
 from app.obs.metrics import HTTP_LATENCY, HTTP_REQUESTS
 from app.ops.control import Pacer, PolicySwitch
@@ -40,6 +44,8 @@ class Services:
     decisions: DecisionService
     pacer: Pacer
     policy: PolicySwitch
+    engine: DecisionEngine | None = None      # per-tick recommendation -> confidence -> gate (decisions/engine.py)
+    explainer: Explainer | None = None        # templates + LangGraph copilot (explain/)
     demand_cache: dict = field(default_factory=dict)
     # Other lanes register an async health probe here (forecaster, decision engine, copilot).
     health_probes: list[HealthProbe] = field(default_factory=list)
@@ -60,6 +66,10 @@ class Services:
         if start_sync:
             self.sync.start()
             self._tasks.append(asyncio.create_task(self._outcome_loop(), name="outcome-check"))
+            if self.engine is not None:
+                self._tasks.append(asyncio.create_task(self.engine.run(
+                    lambda: self.store.snapshot, lambda: components(self), lambda: demand_history(self),
+                    lambda: self.policy.active, self.settings.poll_interval_seconds), name="decision-engine"))
 
     async def stop(self) -> None:
         for t in self._tasks:
@@ -113,6 +123,17 @@ def build_services(settings: Settings, transport=None) -> Services:
                    pacer=Pacer(client, on_tick=refresh_after_step), policy=PolicySwitch(settings.default_policy))
     if settings.forecaster_url:
         svc.health_probes.append(_forecaster_probe(settings.forecaster_url))
+    svc.engine = DecisionEngine(svc.decisions)
+    svc.explainer = Explainer()
+
+    async def decision_engine() -> ComponentHealth:
+        return svc.engine.health()
+
+    async def explanation() -> ComponentHealth:
+        info = svc.explainer.describe()
+        detail = f"LangGraph + {info['llm']}" if info["llm"] else "template explanations (LLM off)"
+        return ComponentHealth(name="Explanation", status="healthy", detail=detail)
+    svc.health_probes += [decision_engine, explanation]
     return svc
 
 
@@ -156,6 +177,7 @@ def create_app(settings: Settings | None = None, services: Services | None = Non
 
     app.include_router(router)
     app.include_router(control_router)
+    app.include_router(decisions_router)
     return app
 
 

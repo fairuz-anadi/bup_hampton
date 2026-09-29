@@ -1,0 +1,137 @@
+{
+  "id": "rec-0042",
+  "tick": 212,
+  "created_at": "2026-10-02T14:03:11Z",
+  "mode": "prevention",
+  "candidates": [
+    {
+      "id": "noop",
+      "policy": "noop",
+      "legs": []
+    },
+    {
+      "id": "greedy-v1",
+      "policy": "greedy-v1",
+      "legs": [
+        {
+          "route_id": "route-gazipur-mirpur",
+          "source_depot_id": "depot-gazipur",
+          "station_id": "station-mirpur",
+          "fuel_type": "PETROL",
+          "quantity": 5000.0
+        }
+      ]
+    },
+    {
+      "id": "lp-v2",
+      "policy": "lp-v2",
+      "legs": [
+        {
+          "route_id": "route-gazipur-mirpur",
+          "source_depot_id": "depot-gazipur",
+          "station_id": "station-mirpur",
+          "fuel_type": "PETROL",
+          "quantity": 3000.0
+        }
+      ]
+    }
+  ],
+  "selected_candidate_id": "lp-v2",
+  "futures": [
+    {
+      "candidate_id": "noop",
+      "label": "Do nothing",
+      "horizon_ticks": 24,
+      "network_unmet_liters": 1496.0,
+      "unmet_by_station": {
+        "station-mirpur": 1296.0,
+        "station-tongi": 200.0
+      },
+      "first_stockout_tick": 225,
+      "service_level": 0.83,
+      "notes": []
+    },
+    {
+      "candidate_id": "greedy-v1",
+      "label": "Send 5,000 L",
+      "horizon_ticks": 24,
+      "network_unmet_liters": 550.0,
+      "unmet_by_station": {
+        "station-mirpur": 0.0,
+        "station-tongi": 550.0
+      },
+      "first_stockout_tick": 230,
+      "service_level": 0.94,
+      "notes": [
+        "Tongi short later"
+      ]
+    },
+    {
+      "candidate_id": "lp-v2",
+      "label": "Send 3,000 L",
+      "horizon_ticks": 24,
+      "network_unmet_liters": 200.0,
+      "unmet_by_station": {
+        "station-mirpur": 0.0,
+        "station-tongi": 200.0
+      },
+      "first_stockout_tick": null,
+      "service_level": 0.98,
+      "notes": []
+    }
+  ],
+  "risks": [
+    {
+      "station_id": "station-mirpur",
+      "fuel_type": "PETROL",
+      "hours_to_stockout": 3.2,
+      "p_stockout": 0.78,
+      "has_backup_route": true
+    },
+    {
+      "station_id": "station-tongi",
+      "fuel_type": "PETROL",
+      "hours_to_stockout": 5.5,
+      "p_stockout": 0.41,
+      "has_backup_route": false
+    }
+  ],
+  "signals": [
+    {
+      "kind": "demand_anomaly",
+      "severity": "warn",
+      "message": "Demand 31% above forecast for 6 ticks",
+      "station_id": "station-mirpur",
+      "fuel_type": "PETROL",
+      "value": 0.31
+    },
+    {
+      "kind": "route_disrupted",
+      "severity": "crit",
+      "message": "route-gazipur-tongi DISRUPTED until tick 216",
+      "station_id": null,
+      "fuel_type": null,
+      "value": null
+    },
+    {
+      "kind": "supply_delayed",
+      "severity": "warn",
+      "message": "Gazipur petrol supply delayed to tick 234",
+      "station_id": null,
+      "fuel_type": null,
+      "value": null
+    }
+  ],
+  "constraints": [
+    "depot-gazipur dispatch 12,000 L/tick",
+    "station-mirpur petrol headroom 12,000 L incl. in transit"
+  ],
+  "confidence": 0.74,
+  "versions": {
+    "policy": "lp-v2",
+    "forecast_model": "fc-v1",
+    "deployment": "git-dev"
+  },
+  "fallback_used": [],
+  "built_on_stale_data": false
+}
