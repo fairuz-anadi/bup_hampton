@@ -100,4 +100,5 @@ class CopilotService:
             submission=submission_result,
             outcome=outcome_result,
             twin_verified=twin_check,
+            multiagent_decision=getattr(recommendation, "multiagent_decision", None),
         )

@@ -161,7 +161,7 @@ class PolicyGauntletRunner:
 
                 legs: list[AllocationLeg] = []
                 if policy == "lp-v2":
-                    rec = self.intel.evaluate_and_recommend(snapshot, demand_history)
+                    rec = self.intel.evaluate_and_recommend(snapshot, demand_history, enable_multiagent=False)
                     legs = rec.legs
                     if "optimizer" in rec.fallback_used:
                         fallback_activations += 1
