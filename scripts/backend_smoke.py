@@ -17,6 +17,7 @@ p = argparse.ArgumentParser()
 p.add_argument("--backend", default="http://localhost:8080")
 p.add_argument("--sim", default="http://localhost:8000")
 p.add_argument("--key", default=os.environ.get("OPERATOR_KEY", "local-dev-key"))
+p.add_argument("--docker", action="store_true", help="also stop/start postgres to test buffering (compose stack)")
 args = p.parse_args()
 
 
@@ -86,7 +87,8 @@ check("idempotent resubmit accepted, same sim id",
 sims = sim("GET", "/v1/allocations")[1]
 check("no duplicate shipment in simulator", sum(a["idempotency_key"] == "fg-smoke-1-0" for a in sims) == 1)
 
-st = api("GET", "/api/state")[1]
+st = wait_for(lambda: (lambda s: s if len(s["in_transit"]) == 3 else None)(api("GET", "/api/state")[1]), 5)
+st = st or api("GET", "/api/state")[1]
 check("in-transit ledger has the legs", len(st["in_transit"]) == 3, len(st["in_transit"]))
 check("dispatched_this_tick counts gazipur", st["dispatched_this_tick"].get("depot-gazipur") == 10000,
       st["dispatched_this_tick"])
@@ -129,8 +131,55 @@ check("stale header detected", st is not None and any("X-Simulator-Stale" in x f
       st and st["freshness"]["reasons"])
 sim("POST", "/admin/faults/clear")
 
-code, text = urllib.request.urlopen(args.backend + "/metrics").status, urllib.request.urlopen(args.backend + "/metrics").read().decode()
-check("metrics exported", "fuelguard_sim_requests_total" in text and "fuelguard_allocations_total" in text)
+sim("POST", "/admin/reset"); sim("POST", "/admin/pause")
+wait_for(lambda: (lambda s: not s["freshness"]["stale"] and s["tick"] == 0)(api("GET", "/api/state")[1]), 20)
+
+# --- decision review: register a recommendation, approve it, see it submitted and in history
+tick = api("GET", "/api/state")[1]["tick"]
+rec = json.loads(open(os.path.join(os.path.dirname(__file__), "..", "fixtures", "recommendation.json")).read())
+rec.update(id=f"smoke-rec-{int(time.time())}", tick=tick)
+code, d = api("POST", "/api/decisions", {"recommendation": rec})
+check("decision registered", code == 201 and d["stage"] == "projected", d)
+code, d = api("POST", f"/api/decisions/{rec['id']}/approve", {"by": "smoke", "reason": "smoke test"})
+check("approve submits allocations", code == 200 and d["stage"] == "submitted"
+      and d["submissions"][0]["result"] == "accepted", d)
+code, d = api("POST", f"/api/decisions/{rec['id']}/approve", {"by": "smoke"})
+check("double approve refused", code == 409, code)
+check("decision in history", any(x["decision_id"] == rec["id"] for x in api("GET", "/api/decisions")[1]))
+
+# --- pacer steps the simulator for us
+t0 = api("GET", "/api/state")[1]["tick"]
+api("POST", "/api/pacer", {"enabled": True, "interval_ms": 200, "max_ticks": 5})
+st = wait_for(lambda: (lambda s: s if s["tick"] >= t0 + 5 else None)(api("GET", "/api/state")[1]), 15)
+check("pacer advanced 5 ticks", st is not None, api("GET", "/api/state")[1]["tick"])
+api("POST", "/api/pacer", {"enabled": False})
+
+# --- chaos proxy
+code, _ = api("POST", "/api/chaos/events", {"type": "demand_spike", "start_in_ticks": 1, "duration_ticks": 4,
+                                            "parameters": {"region_ids": ["region-dhaka"], "multiplier": 1.5}})
+check("chaos event injected through backend", code == 201, code)
+
+# --- database outage: operations continue, records buffer, then flush
+if args.docker:
+    import subprocess
+    subprocess.run(["docker", "compose", "stop", "postgres"], check=True, capture_output=True)
+    comps = wait_for(lambda: (lambda h: h if any(c["name"] == "Database" and c["status"] == "down"
+                                                 for c in h["components"]) else None)(api("GET", "/api/health")[1]), 30)
+    check("health shows database down", comps is not None)
+    rec.update(id=rec["id"] + "-dbdown")
+    code, d = api("POST", "/api/decisions", {"recommendation": rec})
+    check("decisions still accepted while database is down", code == 201, d)
+    subprocess.run(["docker", "compose", "start", "postgres"], check=True, capture_output=True)
+    ok = wait_for(lambda: any(c["name"] == "Database" and c["status"] == "healthy"
+                              for c in api("GET", "/api/health")[1]["components"]), 60, 1)
+    check("database reconnects", ok)
+    out = subprocess.run(["docker", "compose", "exec", "-T", "postgres", "psql", "-U", "fuelguard", "-tAc",
+                          f"select count(*) from decisions where decision_id = '{rec['id']}'"],
+                         capture_output=True, text=True)
+    check("buffered decision flushed to postgres", out.stdout.strip() == "1", out.stdout + out.stderr)
+
+text = urllib.request.urlopen(args.backend + "/metrics").read().decode()
+check("metrics exported", "fuelguard_sim_requests_total" in text and "fuelguard_decisions_total" in text)
 
 sim("POST", "/admin/reset"); sim("POST", "/admin/pause")
 print(f"\n{'ALL PASSED' if not failures else f'{len(failures)} FAILED: {failures}'}")

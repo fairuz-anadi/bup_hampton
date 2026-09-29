@@ -1,0 +1,33 @@
+# One public hostname. Caddy gets and renews the HTTPS certificate by itself.
+# PUBLIC_HOST can be a real domain, or <server-ip>.sslip.io if you don't have one.
+{$PUBLIC_HOST} {
+	encode gzip
+
+	# Backend API, its docs and metrics
+	handle /api/* {
+		reverse_proxy backend:8080
+	}
+	handle /docs* {
+		reverse_proxy backend:8080
+	}
+	handle /openapi.json {
+		reverse_proxy backend:8080
+	}
+
+	# Grafana (anonymous viewers are read-only)
+	handle /grafana* {
+		reverse_proxy grafana:3000
+	}
+
+	# Frontend (Mission Control). Until the frontend service exists this returns 502;
+	# the API and Grafana work regardless.
+	handle {
+		reverse_proxy frontend:80
+	}
+
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+	}
+}

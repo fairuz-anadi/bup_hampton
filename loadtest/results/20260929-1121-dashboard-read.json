@@ -1,0 +1,51 @@
+{
+  "workload": "dashboard-read",
+  "env": [
+    "VUS=600",
+    "RAMP=90s",
+    "HOLD=60s"
+  ],
+  "started": "2026-09-29T11:21:58.890301",
+  "wall_seconds": 164.5,
+  "thresholds_passed": true,
+  "requests": 95586,
+  "throughput_rps": 593.8,
+  "error_rate": 0,
+  "peak_vus": 600,
+  "latency_ms": {
+    "avg": 48.5,
+    "med": 24.2,
+    "p(95)": 176.5,
+    "p(99)": 287.1,
+    "max": 578.6
+  },
+  "resources": {
+    "backend": {
+      "cpu_peak_pct": 104.0,
+      "mem_peak_mib": 79.1
+    },
+    "grafana": {
+      "cpu_peak_pct": 5.3,
+      "mem_peak_mib": 58.6
+    },
+    "postgres": {
+      "cpu_peak_pct": 9.2,
+      "mem_peak_mib": 26.7
+    },
+    "prometheus": {
+      "cpu_peak_pct": 6.5,
+      "mem_peak_mib": 29.3
+    },
+    "simulator-api": {
+      "cpu_peak_pct": 12.3,
+      "mem_peak_mib": 68.5
+    }
+  },
+  "custom": {
+    "checks": {
+      "passes": 95586,
+      "fails": 0,
+      "value": 1
+    }
+  }
+}

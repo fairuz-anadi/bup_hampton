@@ -645,6 +645,45 @@ class SubmitAllocationsResponse(_Model):
     submissions: list[SubmittedAllocation]
 
 
+class CreateDecisionRequest(_Model):
+    recommendation: Recommendation
+    gate: dict | None = None
+    mode: Literal["MANUAL", "SUPERVISED", "AUTONOMOUS"] | None = None
+
+
+class ReviewRequest(_Model):
+    by: str = Field(min_length=1, max_length=60)
+    reason: str | None = Field(None, max_length=500)
+    legs: list[AllocationLeg] | None = Field(None, max_length=50,
+                                             description="Approve only: modified legs replace the selected candidate.")
+
+
+class ChaosEventRequest(_Model):
+    type: EventType
+    start_tick: int | None = Field(None, ge=0, description="Absolute tick. Omit to use start_in_ticks.")
+    start_in_ticks: int = Field(0, ge=0, le=1000, description="Relative to the current tick.")
+    duration_ticks: int = Field(gt=0, le=2000)
+    parameters: dict = Field(default_factory=dict)
+
+
+class ChaosFaultRequest(_Model):
+    type: Literal["latency", "unavailable", "error_rate", "stale_data", "stream_disconnect"]
+    duration_seconds: int = Field(gt=0, le=3600)
+    parameters: dict = Field(default_factory=dict)
+
+
+class PacerRequest(_Model):
+    enabled: bool
+    interval_ms: int = Field(1000, ge=100, le=10000)
+    max_ticks: int | None = Field(None, gt=0, le=10000)
+
+
+class PolicyRequest(_Model):
+    policy: str = Field(min_length=1, max_length=40, pattern=r"^[a-z0-9.-]+$")
+    accept: bool = False
+    by: str = Field("operator", max_length=60)
+
+
 class ComponentHealth(_Model):
     name: str
     status: Literal["healthy", "degraded", "down", "unknown"]
@@ -656,6 +695,10 @@ class HealthReport(_Model):
     components: list[ComponentHealth]
     tick: int | None
     snapshot_age_seconds: float | None
+    version: str = "dev"
+    active_policy: str | None = None
+    pacer_running: bool = False
+
 
 # ---------------------------------------------------------------------------------------------
 # Convenience Aliases & Properties for Intelligence & Copilot

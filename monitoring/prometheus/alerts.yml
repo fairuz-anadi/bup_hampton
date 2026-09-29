@@ -1,0 +1,51 @@
+groups:
+  - name: fuelguard
+    rules:
+      - alert: BackendHighErrorRate
+        expr: |
+          sum(rate(fuelguard_http_requests_total{status=~"5.."}[1m]))
+            / clamp_min(sum(rate(fuelguard_http_requests_total[1m])), 1e-9) > 0.05
+        for: 30s
+        labels: {severity: warning}
+        annotations:
+          summary: "Backend 5xx rate above 5%"
+
+      - alert: SimulatorCircuitOpen
+        expr: fuelguard_sim_circuit_state == 2
+        for: 5s
+        labels: {severity: critical}
+        annotations:
+          summary: "Simulator circuit is open: serving cached state, writes held"
+
+      - alert: SnapshotStale
+        expr: fuelguard_snapshot_stale == 1
+        for: 15s
+        labels: {severity: warning}
+        annotations:
+          summary: "Operational snapshot is stale"
+
+      - alert: FallbackActive
+        expr: increase(fuelguard_fallback_activations_total[2m]) > 0
+        labels: {severity: info}
+        annotations:
+          summary: "A component is running on its fallback ({{ $labels.component }})"
+
+      - alert: DatabaseBuffering
+        expr: fuelguard_db_buffered > 0
+        for: 30s
+        labels: {severity: warning}
+        annotations:
+          summary: "Decision records are buffered; database unreachable"
+
+      - alert: TwinErrorHigh
+        expr: fuelguard_twin_error_liters > 1000
+        labels: {severity: info}
+        annotations:
+          summary: "Decision Twin projection missed by more than 1,000 L"
+
+      - alert: BackendDown
+        expr: up{job="backend"} == 0
+        for: 15s
+        labels: {severity: critical}
+        annotations:
+          summary: "Backend is not answering /metrics"

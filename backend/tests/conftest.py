@@ -25,6 +25,8 @@ class FakeSim:
         self.stale = False
         self.calls: list[tuple[str, str]] = []
         self.posted: dict[str, dict] = {}
+        self.admin_calls: list[tuple[str, str, object]] = []
+        self.world["demand_history"] = []
 
     def handler(self, request: httpx.Request) -> httpx.Response:
         path = request.url.path
@@ -51,6 +53,13 @@ class FakeSim:
             return httpx.Response(201, json=self.posted[body["idempotency_key"]]["alloc"])
         if path == "/v1/health":
             return httpx.Response(200, json={"status": "ok"})
+        if path.startswith("/admin/"):
+            body = json.loads(request.content) if request.content else None
+            self.admin_calls.append((request.method, path, body))
+            if path == "/admin/step":
+                self.world["instance"]["tick"] += 1
+                return httpx.Response(200, json={"tick": self.world["instance"]["tick"]})
+            return httpx.Response(201 if body else 200, json=body or {"status": "ok"})
         key = path.removeprefix("/v1/").replace("-", "_")
         if key in self.world:
             return httpx.Response(200, json=self.world[key], headers=headers)

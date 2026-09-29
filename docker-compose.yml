@@ -36,10 +36,22 @@ services:
         DEPLOYMENT_VERSION: ${DEPLOYMENT_VERSION:-dev}
     environment:
       SIMULATOR_URL: http://simulator-api:8000
-      FORECASTER_URL: http://forecaster:8090
+      FORECASTER_URL: ${FORECASTER_URL:-http://forecaster:8090}
       OPERATOR_KEY: ${OPERATOR_KEY:?set OPERATOR_KEY in .env (see .env.example)}
+      DATABASE_URL: postgresql://fuelguard:${POSTGRES_PASSWORD:-fuelguard}@postgres:5432/fuelguard
+      DB_BUFFER_PATH: /data/buffer.jsonl
+      # Copilot (optional): without OPENAI_API_KEY explanations come from templates.
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      COPILOT_MODEL: ${COPILOT_MODEL:-gpt-4o-mini}
+      LANGSMITH_TRACING: ${LANGSMITH_TRACING:-false}
+      LANGSMITH_ENDPOINT: ${LANGSMITH_ENDPOINT:-https://api.smith.langchain.com}
+      LANGSMITH_API_KEY: ${LANGSMITH_API_KEY:-}
+      LANGSMITH_PROJECT: ${LANGSMITH_PROJECT:-FuelGuard}
+      AUTOPILOT: ${AUTOPILOT:-true}
       POLL_INTERVAL_SECONDS: ${POLL_INTERVAL_SECONDS:-1}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    volumes:
+      - backend-data:/data
     ports:
       - "8080:8080"
     depends_on:
@@ -47,4 +59,82 @@ services:
         condition: service_healthy
       forecaster:
         condition: service_healthy
+      # Not service_healthy on purpose: the backend runs (and buffers decisions) without the database.
+      postgres:
+        condition: service_started
     restart: on-failure
+
+  # Operator UI (Mission Control). nginx serves the build and proxies /api/ to the backend,
+  # so one hostname serves both (deploy/Caddyfile routes / to frontend:80).
+  frontend:
+    build: ./frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    restart: on-failure
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: fuelguard
+      POSTGRES_USER: fuelguard
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-fuelguard}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fuelguard -d fuelguard"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: on-failure
+
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=7d
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
+    ports:
+      - "9090:9090"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:9090/-/healthy || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    restart: on-failure
+
+  grafana:
+    image: grafana/grafana:11.3.0
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      # Judges can view dashboards without logging in; only the admin can edit.
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/fuelguard-ops.json
+      GF_SERVER_ROOT_URL: ${GRAFANA_ROOT_URL:-http://localhost:3001/}
+      GF_SERVER_SERVE_FROM_SUB_PATH: ${GRAFANA_SUB_PATH:-false}
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    ports:
+      - "3001:3000"
+    depends_on:
+      - prometheus
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/api/health || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    restart: on-failure
+
+volumes:
+  pgdata:
+  grafana-data:
+  backend-data:
