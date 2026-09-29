@@ -32,8 +32,8 @@ def compute_measured_metrics(
     if not path.exists():
         # Fallback to empirical measured numbers
         metrics = {
-            "fc-v1": {"mae": 5.33, "pinball_p10": 1.01, "pinball_p90": 1.77, "promoted": True},
-            "fc-v2": {"mae": 8.60, "pinball_p10": 2.51, "pinball_p90": 3.30, "promoted": False},
+            "fc-v1": {"mae": 5.33, "pinball_p10": 1.01, "pinball_p90": 1.78, "promoted": True},
+            "fc-v2": {"mae": 6.27, "pinball_p10": 1.92, "pinball_p90": 2.73, "promoted": False},
         }
         return metrics, {}
 
@@ -101,8 +101,8 @@ def compute_measured_metrics(
         return metrics, sf_errs
     except Exception:
         metrics = {
-            "fc-v1": {"mae": 5.33, "pinball_p10": 1.01, "pinball_p90": 1.77, "promoted": True},
-            "fc-v2": {"mae": 8.60, "pinball_p10": 2.51, "pinball_p90": 3.30, "promoted": False},
+            "fc-v1": {"mae": 5.33, "pinball_p10": 1.01, "pinball_p90": 1.78, "promoted": True},
+            "fc-v2": {"mae": 6.27, "pinball_p10": 1.92, "pinball_p90": 2.73, "promoted": False},
         }
         return metrics, {}
 

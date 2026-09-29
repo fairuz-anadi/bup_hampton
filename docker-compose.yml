@@ -60,8 +60,10 @@ services:
     depends_on:
       simulator-api:
         condition: service_healthy
+      # Not service_healthy on purpose: the backend falls back to its in-process predictor when the
+      # forecaster is down (plan §08), so a broken forecaster must not stop the whole app from starting.
       forecaster:
-        condition: service_healthy
+        condition: service_started
       # Not service_healthy on purpose: the backend runs (and buffers decisions) without the database.
       postgres:
         condition: service_started
