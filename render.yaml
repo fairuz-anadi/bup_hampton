@@ -1,0 +1,101 @@
+# Render Blueprint for FuelGuard: New > Blueprint > pick this repo (branch render-deploy) > Apply.
+#
+#   fuelguard-ui        static site      operator UI, proxies /api/* to the backend
+#   fuelguard-backend   web (Docker)     FastAPI backend
+#   forecaster          private (Docker) demand forecaster
+#   simulator-api       private (image)  the organizers' official simulator, unmodified
+#   fuelguard-db        Postgres         decision history
+#
+# Prometheus and Grafana are not deployed here (they need extra paid services and a disk); run them locally.
+# The simulator is single-tenant: keep exactly one instance and do not let it scale.
+# Paid plans are required: Render private services have no free tier, and a spun-down simulator loses its state.
+#
+# Service names are also the private-network hostnames. If Render says a name is taken, rename it here and in
+# SIMULATOR_URL / FORECASTER_URL / the rewrite destination below.
+# All services must share one region so the private network works.
+
+databases:
+  - name: fuelguard-db
+    databaseName: fuelguard
+    user: fuelguard
+    region: singapore
+    plan: basic-256mb
+
+services:
+  - type: pserv
+    name: simulator-api
+    runtime: image
+    region: singapore
+    plan: starter
+    image:
+      url: docker.io/asifmahmoud414/bup-fuel-supply-simulator:1.0.0
+    envVars:
+      - key: SIMULATION_SPEED
+        value: "8"
+      - key: TICK_MINUTES
+        value: "15"
+      - key: SIMULATOR_START_MODE
+        value: paused
+
+  - type: pserv
+    name: forecaster
+    runtime: docker
+    region: singapore
+    plan: starter
+    dockerfilePath: ./forecaster/Dockerfile
+    dockerContext: .
+    envVars:
+      - key: PORT
+        value: "8090"
+
+  - type: web
+    name: fuelguard-backend
+    runtime: docker
+    region: singapore
+    plan: standard        # the backend loads the forecasting libraries: about 450 MB in use, too much for 512 MB
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: .
+    healthCheckPath: /api/health
+    envVars:
+      - key: PORT
+        value: "8080"
+      - key: SIMULATOR_URL
+        value: http://simulator-api:8000
+      - key: FORECASTER_URL
+        value: http://forecaster:8090
+      - key: DATABASE_URL
+        fromDatabase:
+          name: fuelguard-db
+          property: connectionString
+      - key: DB_BUFFER_PATH
+        value: /data/buffer.jsonl
+      # Generated once; read it under the service's Environment tab and use it to unlock the operator controls.
+      - key: OPERATOR_KEY
+        generateValue: true
+      - key: DEPLOYMENT_VERSION
+        value: render
+      - key: POLL_INTERVAL_SECONDS
+        value: "1"
+      - key: LOG_LEVEL
+        value: INFO
+      - key: AUTOPILOT
+        value: "true"
+      # Optional. Left empty, explanations come from templates and the multi-agent critic is off.
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: HUGGINGFACE_API_KEY
+        sync: false
+
+  - type: web
+    name: fuelguard-ui
+    runtime: static
+    buildCommand: cd frontend && npm ci && npm run build
+    staticPublishPath: frontend/dist
+    routes:
+      # The UI calls relative /api/... URLs; forward them to the backend (same effect as the nginx proxy in compose).
+      - type: rewrite
+        source: /api/*
+        destination: https://fuelguard-backend.onrender.com/api/*
+      - type: rewrite
+        source: /*
+        destination: /index.html
