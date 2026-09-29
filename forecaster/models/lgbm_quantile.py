@@ -141,9 +141,18 @@ class LGBMQuantileForecaster:
         bands: list[ForecastBand] = []
 
         # Derive initial lags from history or baseline
+        # Lags come from this station and fuel only, oldest -> newest. The API returns every station's rows
+        # newest-first with the demand under `demand_liters`; reading `demand` gave zeros for every lag.
         history_vals = []
         if demand_history:
-            history_vals = [item.get("demand", item.get("quantity", 0.0)) for item in demand_history]
+            rows = []
+            for item in demand_history:
+                f_raw = item.get("fuel_type", item.get("fuel"))
+                f_val = f_raw.value if hasattr(f_raw, "value") else str(f_raw)
+                if item.get("station_id") == station_id and f_val == fuel.value:
+                    rows.append(item)
+            rows.sort(key=lambda x: x.get("tick", 0))
+            history_vals = [float(r.get("demand_liters", r.get("demand", r.get("quantity", 0.0)))) for r in rows]
 
         curr_base = self.baseline.compute_base_demand_for_tick(
             profile, fuel.value, current_tick, demand_multiplier

@@ -82,3 +82,12 @@ def test_metrics_endpoint(api):
     api.get("/api/state")
     text = api.get("/metrics").text
     assert "fuelguard_http_requests_total" in text and "fuelguard_sim_requests_total" in text
+
+
+def test_multiagent_endpoint(api):
+    r = api.get("/api/decisions/multiagent/latest")
+    assert r.status_code == 200
+    # Returns status unavailable or decision payload
+    data = r.json()
+    assert "status" in data or "multiagent_decision" in data
+

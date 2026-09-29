@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 import time
 from collections.abc import Awaitable, Callable
 from contextlib import asynccontextmanager, suppress
@@ -14,6 +15,7 @@ from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from app.api.control_routes import router as control_router
 from app.api.gauntlet_routes import router as gauntlet_router
 from app.api.routes import router
+from app.chat import ChatRepo, ChatService, chat_router
 from app.config import Settings, get_settings
 from app.contracts import ComponentHealth
 from app.db.repo import DecisionRepo
@@ -47,6 +49,8 @@ class Services:
     policy: PolicySwitch
     engine: DecisionEngine | None = None      # per-tick recommendation -> confidence -> gate (decisions/engine.py)
     explainer: Explainer | None = None        # templates + LangGraph copilot (explain/)
+    chat_repo: ChatRepo | None = None
+    chat: ChatService | None = None
     # Result of the background /v1/health probe: {"alive", "checked_at", "latency_ms", "pending_since"}
     sim_probe: dict = field(default_factory=dict)
     demand_cache: dict = field(default_factory=dict)
@@ -66,6 +70,8 @@ class Services:
 
     async def start(self, start_sync: bool) -> None:
         await self.repo.start()
+        if self.chat_repo:
+            await self.chat_repo.start()
         self._tasks.append(asyncio.create_task(self._probe_loop(), name="sim-health-probe"))
         if start_sync:
             self.sync.start()
@@ -81,6 +87,8 @@ class Services:
         await asyncio.gather(*self._tasks, return_exceptions=True)
         await self.pacer.stop()
         await self.sync.stop()
+        if self.chat_repo:
+            await self.chat_repo.stop()
         await self.repo.stop()
         await self.client.aclose()
 
@@ -146,6 +154,20 @@ def build_services(settings: Settings, transport=None) -> Services:
     svc.engine = DecisionEngine(svc.decisions)
     svc.explainer = Explainer()
 
+    chat_repo = ChatRepo(settings.database_url or None, settings.chat_db_buffer_path)
+    api_key_val = settings.ai_api_key.get_secret_value() or os.getenv("OPENAI_API_KEY", "")
+    chat_svc = ChatService(
+        repo=chat_repo,
+        provider=settings.ai_provider,
+        model=settings.ai_model,
+        api_key=api_key_val,
+        base_url=settings.ai_base_url or None,
+        timeout_seconds=settings.chat_timeout_seconds,
+        max_history_turns=settings.chat_max_history,
+    )
+    svc.chat_repo = chat_repo
+    svc.chat = chat_svc
+
     async def decision_engine() -> ComponentHealth:
         return svc.engine.health()
 
@@ -153,7 +175,11 @@ def build_services(settings: Settings, transport=None) -> Services:
         info = svc.explainer.describe()
         detail = f"LangGraph + {info['llm']}" if info["llm"] else "template explanations (LLM off)"
         return ComponentHealth(name="Explanation", status="healthy", detail=detail)
-    svc.health_probes += [decision_engine, explanation]
+
+    async def chat_health() -> ComponentHealth:
+        return svc.chat.health()
+
+    svc.health_probes += [decision_engine, explanation, chat_health]
     return svc
 
 
@@ -199,6 +225,7 @@ def create_app(settings: Settings | None = None, services: Services | None = Non
     app.include_router(control_router)
     app.include_router(decisions_router)
     app.include_router(gauntlet_router)
+    app.include_router(chat_router)
     return app
 
 

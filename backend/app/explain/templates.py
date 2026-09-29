@@ -98,6 +98,11 @@ def decision_facts(rec: Recommendation, snap: NetworkSnapshot | None, gate: dict
         "chosen_label": (chosen.label or chosen.name) if chosen else None,
         "fallback_used": list(rec.fallback_used), "stale": rec.built_on_stale_data,
         "gate": gate or {},
+        "multiagent": {
+            "consensus_score": rec.multiagent_decision.consensus_score,
+            "verdict": rec.multiagent_decision.executive_verdict,
+            "critic": rec.multiagent_decision.critic_review,
+        } if getattr(rec, "multiagent_decision", None) else None,
     }
 
 
@@ -109,6 +114,10 @@ def explain_decision(f: dict) -> ExplainResponse:
         return s
 
     lines: list[str] = []
+    ma = f.get("multiagent")
+    if ma and ma.get("verdict"):
+        lines.append("**Consensus.** " + cite(ma["verdict"]))
+
     legs = f["legs"]
     if legs:
         parts = [f"{_l(x['litres'])} {x['fuel'].lower()} {x['from']} → {x['to']}" for x in legs]

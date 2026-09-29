@@ -44,6 +44,22 @@ class Settings(BaseSettings):
     # Off until the intel lane reads the real demand-history fields (demand_liters / fuel_type).
     intel_use_demand_history: bool = False
 
+    # Multiagent decision system (OpenAI executive + Hugging Face critic)
+    multiagent_enabled: bool = True
+    multiagent_timeout_seconds: float = Field(4.0, gt=0)
+    huggingface_api_key: SecretStr = SecretStr("")
+    hf_token: SecretStr = SecretStr("")
+    hf_model: str = "meta-llama/Llama-3.1-8B-Instruct"
+
+    # AI Chatbot configuration
+    ai_provider: str = "openai"
+    ai_api_key: SecretStr = SecretStr("")
+    ai_model: str = "gpt-4o-mini"
+    ai_base_url: str = ""
+    chat_timeout_seconds: float = Field(12.0, gt=0)
+    chat_max_history: int = Field(8, ge=2, le=30)
+    chat_db_buffer_path: str = "/tmp/fuelguard-chat-buffer.jsonl"
+
     log_level: str = "INFO"
     deployment_version: str = "dev"
 

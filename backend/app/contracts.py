@@ -515,6 +515,36 @@ class Candidate(_Model):
     legs: list[AllocationLeg]
 
 
+class AgentRole(StrEnum):
+    DEMAND_FORECASTER = "demand_forecaster"
+    SUPPLY_LOGISTICS = "supply_logistics"
+    SAFETY_AUDITOR = "safety_auditor"
+    ADVERSARIAL_CRITIC = "adversarial_critic"
+    EXECUTIVE_COORDINATOR = "executive_coordinator"
+
+
+class AgentAssessment(_Model):
+    role: AgentRole | str
+    status: Literal["OK", "WARN", "CRIT", "VETO"] = "OK"
+    confidence: float = Field(ge=0.0, le=1.0, default=1.0)
+    summary: str = ""
+    key_findings: list[str] = Field(default_factory=list)
+    concerns: list[str] = Field(default_factory=list)
+    provider: str = "heuristic"
+
+
+class MultiAgentDecision(_Model):
+    primary_provider: str = "openai"
+    critic_provider: str = "huggingface"
+    consensus_score: float = Field(ge=0.0, le=1.0, default=1.0)
+    selected_policy: str = "lp-v2"
+    agent_assessments: dict[str, AgentAssessment] = Field(default_factory=dict)
+    critic_review: str = ""
+    executive_verdict: str = ""
+    requires_human_override: bool = False
+    unmet_avoided_liters: float = 0.0
+
+
 class Recommendation(_Model):
     id: str
     tick: int
@@ -540,6 +570,8 @@ class Recommendation(_Model):
     legs: list[AllocationLeg] = Field(default_factory=list)
     policy: str = "lp-v2"
     alternatives: list[str] = Field(default_factory=list)
+    multiagent_decision: MultiAgentDecision | None = None
+
 
     @model_validator(mode="before")
     @classmethod
@@ -590,6 +622,7 @@ class DecisionRecord(_Model):
     twin_verified: dict | None = None
     submission: dict | None = None
     timestamp: str | datetime | None = None
+    multiagent_decision: MultiAgentDecision | None = None
 
     @model_validator(mode="before")
     @classmethod

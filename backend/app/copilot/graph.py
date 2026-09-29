@@ -87,6 +87,18 @@ def node_extract_facts(state: CopilotState) -> dict:
         f"vs No-Op counterfactual ({rec.before_projected_unmet:.0f} L -> {rec.after_projected_unmet:.0f} L)"
     )
 
+    # 5. Multi-Agent consensus
+    if getattr(rec, "multiagent_decision", None):
+        mad = rec.multiagent_decision
+        facts.append(
+            f"Multi-Agent Consensus: {mad.consensus_score * 100:.0f}% agreement "
+            f"(Primary Executive: {mad.primary_provider.upper()}, Adversarial Critic: {mad.critic_provider.upper()})"
+        )
+        if mad.executive_verdict:
+            facts.append(f"Executive Verdict: {mad.executive_verdict}")
+        if mad.critic_review:
+            facts.append(f"Adversarial Critic Review: {mad.critic_review}")
+
     return {"facts": facts}
 
 
