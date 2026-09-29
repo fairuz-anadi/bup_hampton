@@ -1,0 +1,58 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  backend-tests:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements-dev.txt
+      - run: pip install -r requirements-dev.txt
+      - name: Lint
+        run: ruff check app tests
+      - name: Unit tests
+        run: pytest -q
+
+  compose-smoke:
+    # Build -> package -> deploy -> health check -> end-to-end smoke against the official simulator.
+    needs: backend-tests
+    runs-on: ubuntu-latest
+    env:
+      OPERATOR_KEY: ci-${{ github.run_id }}
+      DEPLOYMENT_VERSION: ${{ github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build images
+        run: docker compose build
+      - name: Deploy stack
+        run: docker compose up -d
+      - name: Wait for backend health check
+        run: |
+          for i in $(seq 1 60); do
+            status=$(docker inspect bup_hampton-backend-1 --format '{{.State.Health.Status}}' 2>/dev/null || echo none)
+            [ "$status" = "healthy" ] && exit 0
+            sleep 2
+          done
+          docker compose ps; docker compose logs backend; exit 1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: End-to-end smoke test
+        run: python scripts/backend_smoke.py --key "$OPERATOR_KEY"
+      - name: Logs on failure
+        if: failure()
+        run: docker compose logs --tail 200
+      - name: Tear down
+        if: always()
+        run: docker compose down -v

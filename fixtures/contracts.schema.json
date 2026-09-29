@@ -1,0 +1,1914 @@
+{
+  "NetworkSnapshot": {
+    "$defs": {
+      "Depot": {
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "region_id": {
+            "title": "Region Id",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "OPEN",
+              "CONSTRAINED"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "dispatch_capacity_per_tick": {
+            "minimum": 0,
+            "title": "Dispatch Capacity Per Tick",
+            "type": "number"
+          },
+          "capacity": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "propertyNames": {
+              "$ref": "#/$defs/FuelType"
+            },
+            "title": "Capacity",
+            "type": "object"
+          },
+          "inventory": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "propertyNames": {
+              "$ref": "#/$defs/FuelType"
+            },
+            "title": "Inventory",
+            "type": "object"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "region_id",
+          "status",
+          "dispatch_capacity_per_tick",
+          "capacity",
+          "inventory"
+        ],
+        "title": "Depot",
+        "type": "object"
+      },
+      "Freshness": {
+        "properties": {
+          "stale": {
+            "description": "Any resource stale, or the simulator circuit is open.",
+            "title": "Stale",
+            "type": "boolean"
+          },
+          "reasons": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Reasons",
+            "type": "array"
+          },
+          "circuit": {
+            "enum": [
+              "CLOSED",
+              "OPEN",
+              "HALF_OPEN"
+            ],
+            "title": "Circuit",
+            "type": "string"
+          },
+          "resources": {
+            "additionalProperties": {
+              "$ref": "#/$defs/ResourceFreshness"
+            },
+            "title": "Resources",
+            "type": "object"
+          }
+        },
+        "required": [
+          "stale",
+          "circuit",
+          "resources"
+        ],
+        "title": "Freshness",
+        "type": "object"
+      },
+      "FuelType": {
+        "enum": [
+          "DIESEL",
+          "PETROL",
+          "OCTANE"
+        ],
+        "title": "FuelType",
+        "type": "string"
+      },
+      "InTransitLeg": {
+        "description": "One PENDING or IN_TRANSIT allocation, as seen by the station it is heading to.",
+        "properties": {
+          "allocation_id": {
+            "title": "Allocation Id",
+            "type": "integer"
+          },
+          "route_id": {
+            "title": "Route Id",
+            "type": "string"
+          },
+          "source_depot_id": {
+            "title": "Source Depot Id",
+            "type": "string"
+          },
+          "station_id": {
+            "title": "Station Id",
+            "type": "string"
+          },
+          "fuel_type": {
+            "$ref": "#/$defs/FuelType"
+          },
+          "quantity": {
+            "title": "Quantity",
+            "type": "number"
+          },
+          "status": {
+            "enum": [
+              "PENDING",
+              "IN_TRANSIT"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "expected_arrival_tick": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Arrival Tick"
+          }
+        },
+        "required": [
+          "allocation_id",
+          "route_id",
+          "source_depot_id",
+          "station_id",
+          "fuel_type",
+          "quantity",
+          "status",
+          "expected_arrival_tick"
+        ],
+        "title": "InTransitLeg",
+        "type": "object"
+      },
+      "Region": {
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "demand_factor": {
+            "exclusiveMinimum": 0,
+            "title": "Demand Factor",
+            "type": "number"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "demand_factor"
+        ],
+        "title": "Region",
+        "type": "object"
+      },
+      "ResourceFreshness": {
+        "properties": {
+          "fetched_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Wall time of the last successful fetch.",
+            "title": "Fetched At"
+          },
+          "age_seconds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Age Seconds"
+          },
+          "stale": {
+            "description": "True if the last fetch failed or carried X-Simulator-Stale.",
+            "title": "Stale",
+            "type": "boolean"
+          },
+          "last_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Last Error"
+          }
+        },
+        "required": [
+          "fetched_at",
+          "age_seconds",
+          "stale"
+        ],
+        "title": "ResourceFreshness",
+        "type": "object"
+      },
+      "Route": {
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "source_depot_id": {
+            "title": "Source Depot Id",
+            "type": "string"
+          },
+          "destination_station_id": {
+            "title": "Destination Station Id",
+            "type": "string"
+          },
+          "transit_ticks": {
+            "minimum": 0,
+            "title": "Transit Ticks",
+            "type": "integer"
+          },
+          "max_shipment": {
+            "exclusiveMinimum": 0,
+            "title": "Max Shipment",
+            "type": "number"
+          },
+          "status": {
+            "enum": [
+              "AVAILABLE",
+              "DISRUPTED"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "source_depot_id",
+          "destination_station_id",
+          "transit_ticks",
+          "max_shipment",
+          "status"
+        ],
+        "title": "Route",
+        "type": "object"
+      },
+      "SimEvent": {
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "type": {
+            "enum": [
+              "demand_spike",
+              "route_disruption",
+              "station_outage",
+              "depot_constraint",
+              "shipment_delay",
+              "supply_shortfall"
+            ],
+            "title": "Type",
+            "type": "string"
+          },
+          "start_tick": {
+            "title": "Start Tick",
+            "type": "integer"
+          },
+          "end_tick": {
+            "title": "End Tick",
+            "type": "integer"
+          },
+          "status": {
+            "enum": [
+              "SCHEDULED",
+              "ACTIVE",
+              "RESOLVED"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "parameters": {
+            "additionalProperties": true,
+            "title": "Parameters",
+            "type": "object"
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "start_tick",
+          "end_tick",
+          "status"
+        ],
+        "title": "SimEvent",
+        "type": "object"
+      },
+      "SimMetrics": {
+        "properties": {
+          "served_demand_liters": {
+            "title": "Served Demand Liters",
+            "type": "number"
+          },
+          "unmet_demand_liters": {
+            "title": "Unmet Demand Liters",
+            "type": "number"
+          },
+          "service_level": {
+            "maximum": 1,
+            "minimum": 0,
+            "title": "Service Level",
+            "type": "number"
+          },
+          "allocation_liters": {
+            "title": "Allocation Liters",
+            "type": "number"
+          },
+          "allocation_failures": {
+            "title": "Allocation Failures",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "served_demand_liters",
+          "unmet_demand_liters",
+          "service_level",
+          "allocation_liters",
+          "allocation_failures"
+        ],
+        "title": "SimMetrics",
+        "type": "object"
+      },
+      "Station": {
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "region_id": {
+            "title": "Region Id",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "OPEN",
+              "OUTAGE"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "demand_profile": {
+            "title": "Demand Profile",
+            "type": "string"
+          },
+          "demand_multiplier": {
+            "minimum": 0,
+            "title": "Demand Multiplier",
+            "type": "number"
+          },
+          "capacity": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "propertyNames": {
+              "$ref": "#/$defs/FuelType"
+            },
+            "title": "Capacity",
+            "type": "object"
+          },
+          "inventory": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "propertyNames": {
+              "$ref": "#/$defs/FuelType"
+            },
+            "title": "Inventory",
+            "type": "object"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "region_id",
+          "status",
+          "demand_profile",
+          "demand_multiplier",
+          "capacity",
+          "inventory"
+        ],
+        "title": "Station",
+        "type": "object"
+      },
+      "SupplyArrival": {
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "depot_id": {
+            "title": "Depot Id",
+            "type": "string"
+          },
+          "fuel_type": {
+            "$ref": "#/$defs/FuelType"
+          },
+          "quantity": {
+            "minimum": 0,
+            "title": "Quantity",
+            "type": "number"
+          },
+          "planned_tick": {
+            "title": "Planned Tick",
+            "type": "integer"
+          },
+          "actual_tick": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Actual Tick"
+          },
+          "status": {
+            "enum": [
+              "SCHEDULED",
+              "DELAYED",
+              "ARRIVED"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "depot_id",
+          "fuel_type",
+          "quantity",
+          "planned_tick",
+          "status"
+        ],
+        "title": "SupplyArrival",
+        "type": "object"
+      }
+    },
+    "description": "Everything the intelligence layer and the UI need about the world at one tick.\n\nThe backend refreshes this from the simulator every tick. Reads never hit the simulator.\nIf a refresh fails, the last good data is kept and `freshness` says how old it is.",
+    "properties": {
+      "tick": {
+        "title": "Tick",
+        "type": "integer"
+      },
+      "sim_time": {
+        "format": "date-time",
+        "title": "Sim Time",
+        "type": "string"
+      },
+      "tick_minutes": {
+        "title": "Tick Minutes",
+        "type": "integer"
+      },
+      "sim_status": {
+        "enum": [
+          "PAUSED",
+          "RUNNING"
+        ],
+        "title": "Sim Status",
+        "type": "string"
+      },
+      "scenario_id": {
+        "title": "Scenario Id",
+        "type": "string"
+      },
+      "seed": {
+        "title": "Seed",
+        "type": "integer"
+      },
+      "built_at": {
+        "format": "date-time",
+        "title": "Built At",
+        "type": "string"
+      },
+      "freshness": {
+        "$ref": "#/$defs/Freshness"
+      },
+      "regions": {
+        "items": {
+          "$ref": "#/$defs/Region"
+        },
+        "title": "Regions",
+        "type": "array"
+      },
+      "depots": {
+        "items": {
+          "$ref": "#/$defs/Depot"
+        },
+        "title": "Depots",
+        "type": "array"
+      },
+      "stations": {
+        "items": {
+          "$ref": "#/$defs/Station"
+        },
+        "title": "Stations",
+        "type": "array"
+      },
+      "routes": {
+        "items": {
+          "$ref": "#/$defs/Route"
+        },
+        "title": "Routes",
+        "type": "array"
+      },
+      "supply_arrivals": {
+        "items": {
+          "$ref": "#/$defs/SupplyArrival"
+        },
+        "title": "Supply Arrivals",
+        "type": "array"
+      },
+      "events": {
+        "items": {
+          "$ref": "#/$defs/SimEvent"
+        },
+        "title": "Events",
+        "type": "array"
+      },
+      "in_transit": {
+        "description": "PENDING + IN_TRANSIT allocations.",
+        "items": {
+          "$ref": "#/$defs/InTransitLeg"
+        },
+        "title": "In Transit",
+        "type": "array"
+      },
+      "metrics": {
+        "$ref": "#/$defs/SimMetrics"
+      },
+      "in_transit_totals": {
+        "additionalProperties": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "propertyNames": {
+            "$ref": "#/$defs/FuelType"
+          },
+          "type": "object"
+        },
+        "title": "In Transit Totals",
+        "type": "object"
+      },
+      "dispatched_this_tick": {
+        "additionalProperties": {
+          "type": "number"
+        },
+        "title": "Dispatched This Tick",
+        "type": "object"
+      }
+    },
+    "required": [
+      "tick",
+      "sim_time",
+      "tick_minutes",
+      "sim_status",
+      "scenario_id",
+      "seed",
+      "built_at",
+      "freshness",
+      "regions",
+      "depots",
+      "stations",
+      "routes",
+      "supply_arrivals",
+      "events",
+      "in_transit",
+      "metrics",
+      "in_transit_totals",
+      "dispatched_this_tick"
+    ],
+    "title": "NetworkSnapshot",
+    "type": "object"
+  },
+  "ForecastRequest": {
+    "properties": {
+      "tick": {
+        "title": "Tick",
+        "type": "integer"
+      },
+      "horizon_ticks": {
+        "exclusiveMinimum": 0,
+        "maximum": 192,
+        "title": "Horizon Ticks",
+        "type": "integer"
+      },
+      "station_ids": {
+        "anyOf": [
+          {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "description": "None means every station.",
+        "title": "Station Ids"
+      }
+    },
+    "required": [
+      "tick",
+      "horizon_ticks"
+    ],
+    "title": "ForecastRequest",
+    "type": "object"
+  },
+  "ForecastResponse": {
+    "$defs": {
+      "ForecastSeries": {
+        "properties": {
+          "station_id": {
+            "title": "Station Id",
+            "type": "string"
+          },
+          "fuel_type": {
+            "$ref": "#/$defs/FuelType"
+          },
+          "mean": {
+            "description": "Litres per tick, index 0 = the next tick.",
+            "items": {
+              "type": "number"
+            },
+            "title": "Mean",
+            "type": "array"
+          },
+          "p10": {
+            "items": {
+              "type": "number"
+            },
+            "title": "P10",
+            "type": "array"
+          },
+          "p90": {
+            "items": {
+              "type": "number"
+            },
+            "title": "P90",
+            "type": "array"
+          },
+          "residual_sigma": {
+            "title": "Residual Sigma",
+            "type": "number"
+          }
+        },
+        "required": [
+          "station_id",
+          "fuel_type",
+          "mean",
+          "p10",
+          "p90",
+          "residual_sigma"
+        ],
+        "title": "ForecastSeries",
+        "type": "object"
+      },
+      "FuelType": {
+        "enum": [
+          "DIESEL",
+          "PETROL",
+          "OCTANE"
+        ],
+        "title": "FuelType",
+        "type": "string"
+      }
+    },
+    "properties": {
+      "model_version": {
+        "title": "Model Version",
+        "type": "string"
+      },
+      "generated_at_tick": {
+        "title": "Generated At Tick",
+        "type": "integer"
+      },
+      "horizon_ticks": {
+        "title": "Horizon Ticks",
+        "type": "integer"
+      },
+      "series": {
+        "items": {
+          "$ref": "#/$defs/ForecastSeries"
+        },
+        "title": "Series",
+        "type": "array"
+      },
+      "fallback": {
+        "default": false,
+        "description": "True when produced by the in-process fallback predictor.",
+        "title": "Fallback",
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "model_version",
+      "generated_at_tick",
+      "horizon_ticks",
+      "series"
+    ],
+    "title": "ForecastResponse",
+    "type": "object"
+  },
+  "Recommendation": {
+    "$defs": {
+      "AllocationLeg": {
+        "description": "One POST /v1/allocations. Legs above route.max_shipment are split before they get here.",
+        "properties": {
+          "route_id": {
+            "title": "Route Id",
+            "type": "string"
+          },
+          "source_depot_id": {
+            "title": "Source Depot Id",
+            "type": "string"
+          },
+          "station_id": {
+            "title": "Station Id",
+            "type": "string"
+          },
+          "fuel_type": {
+            "$ref": "#/$defs/FuelType"
+          },
+          "quantity": {
+            "exclusiveMinimum": 0,
+            "title": "Quantity",
+            "type": "number"
+          }
+        },
+        "required": [
+          "route_id",
+          "source_depot_id",
+          "station_id",
+          "fuel_type",
+          "quantity"
+        ],
+        "title": "AllocationLeg",
+        "type": "object"
+      },
+      "Candidate": {
+        "properties": {
+          "id": {
+            "description": "'noop', 'greedy-v1', 'lp-v2', ...",
+            "title": "Id",
+            "type": "string"
+          },
+          "policy": {
+            "title": "Policy",
+            "type": "string"
+          },
+          "legs": {
+            "items": {
+              "$ref": "#/$defs/AllocationLeg"
+            },
+            "title": "Legs",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "policy",
+          "legs"
+        ],
+        "title": "Candidate",
+        "type": "object"
+      },
+      "FuelType": {
+        "enum": [
+          "DIESEL",
+          "PETROL",
+          "OCTANE"
+        ],
+        "title": "FuelType",
+        "type": "string"
+      },
+      "RiskItem": {
+        "properties": {
+          "station_id": {
+            "title": "Station Id",
+            "type": "string"
+          },
+          "fuel_type": {
+            "$ref": "#/$defs/FuelType"
+          },
+          "hours_to_stockout": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "None = no stockout inside the horizon.",
+            "title": "Hours To Stockout"
+          },
+          "p_stockout": {
+            "maximum": 1,
+            "minimum": 0,
+            "title": "P Stockout",
+            "type": "number"
+          },
+          "has_backup_route": {
+            "title": "Has Backup Route",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "station_id",
+          "fuel_type",
+          "hours_to_stockout",
+          "p_stockout",
+          "has_backup_route"
+        ],
+        "title": "RiskItem",
+        "type": "object"
+      },
+      "Signal": {
+        "description": "Why an area is at risk. Shown to operators and handed to the copilot.",
+        "properties": {
+          "kind": {
+            "enum": [
+              "demand_anomaly",
+              "depletion",
+              "route_disrupted",
+              "station_outage",
+              "depot_constrained",
+              "supply_delayed",
+              "supply_reduced",
+              "stockout_risk",
+              "stale_data",
+              "other"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "severity": {
+            "enum": [
+              "info",
+              "warn",
+              "crit"
+            ],
+            "title": "Severity",
+            "type": "string"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "station_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Station Id"
+          },
+          "fuel_type": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/FuelType"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Value"
+          }
+        },
+        "required": [
+          "kind",
+          "severity",
+          "message"
+        ],
+        "title": "Signal",
+        "type": "object"
+      },
+      "TwinFuture": {
+        "description": "One projected future. Always a projection, never ground truth.",
+        "properties": {
+          "candidate_id": {
+            "title": "Candidate Id",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "horizon_ticks": {
+            "title": "Horizon Ticks",
+            "type": "integer"
+          },
+          "network_unmet_liters": {
+            "title": "Network Unmet Liters",
+            "type": "number"
+          },
+          "unmet_by_station": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "title": "Unmet By Station",
+            "type": "object"
+          },
+          "first_stockout_tick": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Stockout Tick"
+          },
+          "service_level": {
+            "maximum": 1,
+            "minimum": 0,
+            "title": "Service Level",
+            "type": "number"
+          },
+          "notes": {
+            "description": "e.g. 'Tongi short later'.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Notes",
+            "type": "array"
+          }
+        },
+        "required": [
+          "candidate_id",
+          "label",
+          "horizon_ticks",
+          "network_unmet_liters",
+          "unmet_by_station",
+          "first_stockout_tick",
+          "service_level"
+        ],
+        "title": "TwinFuture",
+        "type": "object"
+      }
+    },
+    "properties": {
+      "id": {
+        "title": "Id",
+        "type": "string"
+      },
+      "tick": {
+        "title": "Tick",
+        "type": "integer"
+      },
+      "created_at": {
+        "format": "date-time",
+        "title": "Created At",
+        "type": "string"
+      },
+      "mode": {
+        "enum": [
+          "prevention",
+          "containment"
+        ],
+        "title": "Mode",
+        "type": "string"
+      },
+      "candidates": {
+        "items": {
+          "$ref": "#/$defs/Candidate"
+        },
+        "title": "Candidates",
+        "type": "array"
+      },
+      "selected_candidate_id": {
+        "title": "Selected Candidate Id",
+        "type": "string"
+      },
+      "futures": {
+        "description": "Empty if the Twin was unavailable.",
+        "items": {
+          "$ref": "#/$defs/TwinFuture"
+        },
+        "title": "Futures",
+        "type": "array"
+      },
+      "risks": {
+        "items": {
+          "$ref": "#/$defs/RiskItem"
+        },
+        "title": "Risks",
+        "type": "array"
+      },
+      "signals": {
+        "items": {
+          "$ref": "#/$defs/Signal"
+        },
+        "title": "Signals",
+        "type": "array"
+      },
+      "constraints": {
+        "description": "Constraints that were binding.",
+        "items": {
+          "type": "string"
+        },
+        "title": "Constraints",
+        "type": "array"
+      },
+      "confidence": {
+        "maximum": 1,
+        "minimum": 0,
+        "title": "Confidence",
+        "type": "number"
+      },
+      "versions": {
+        "additionalProperties": {
+          "type": "string"
+        },
+        "description": "policy, forecast_model, deployment",
+        "title": "Versions",
+        "type": "object"
+      },
+      "fallback_used": {
+        "description": "Components that ran on fallback.",
+        "items": {
+          "type": "string"
+        },
+        "title": "Fallback Used",
+        "type": "array"
+      },
+      "built_on_stale_data": {
+        "default": false,
+        "title": "Built On Stale Data",
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "id",
+      "tick",
+      "created_at",
+      "mode",
+      "candidates",
+      "selected_candidate_id",
+      "risks",
+      "signals",
+      "confidence"
+    ],
+    "title": "Recommendation",
+    "type": "object"
+  },
+  "DecisionRecord": {
+    "$defs": {
+      "AllocationLeg": {
+        "description": "One POST /v1/allocations. Legs above route.max_shipment are split before they get here.",
+        "properties": {
+          "route_id": {
+            "title": "Route Id",
+            "type": "string"
+          },
+          "source_depot_id": {
+            "title": "Source Depot Id",
+            "type": "string"
+          },
+          "station_id": {
+            "title": "Station Id",
+            "type": "string"
+          },
+          "fuel_type": {
+            "$ref": "#/$defs/FuelType"
+          },
+          "quantity": {
+            "exclusiveMinimum": 0,
+            "title": "Quantity",
+            "type": "number"
+          }
+        },
+        "required": [
+          "route_id",
+          "source_depot_id",
+          "station_id",
+          "fuel_type",
+          "quantity"
+        ],
+        "title": "AllocationLeg",
+        "type": "object"
+      },
+      "Candidate": {
+        "properties": {
+          "id": {
+            "description": "'noop', 'greedy-v1', 'lp-v2', ...",
+            "title": "Id",
+            "type": "string"
+          },
+          "policy": {
+            "title": "Policy",
+            "type": "string"
+          },
+          "legs": {
+            "items": {
+              "$ref": "#/$defs/AllocationLeg"
+            },
+            "title": "Legs",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "policy",
+          "legs"
+        ],
+        "title": "Candidate",
+        "type": "object"
+      },
+      "FuelType": {
+        "enum": [
+          "DIESEL",
+          "PETROL",
+          "OCTANE"
+        ],
+        "title": "FuelType",
+        "type": "string"
+      },
+      "Recommendation": {
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "tick": {
+            "title": "Tick",
+            "type": "integer"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "mode": {
+            "enum": [
+              "prevention",
+              "containment"
+            ],
+            "title": "Mode",
+            "type": "string"
+          },
+          "candidates": {
+            "items": {
+              "$ref": "#/$defs/Candidate"
+            },
+            "title": "Candidates",
+            "type": "array"
+          },
+          "selected_candidate_id": {
+            "title": "Selected Candidate Id",
+            "type": "string"
+          },
+          "futures": {
+            "description": "Empty if the Twin was unavailable.",
+            "items": {
+              "$ref": "#/$defs/TwinFuture"
+            },
+            "title": "Futures",
+            "type": "array"
+          },
+          "risks": {
+            "items": {
+              "$ref": "#/$defs/RiskItem"
+            },
+            "title": "Risks",
+            "type": "array"
+          },
+          "signals": {
+            "items": {
+              "$ref": "#/$defs/Signal"
+            },
+            "title": "Signals",
+            "type": "array"
+          },
+          "constraints": {
+            "description": "Constraints that were binding.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Constraints",
+            "type": "array"
+          },
+          "confidence": {
+            "maximum": 1,
+            "minimum": 0,
+            "title": "Confidence",
+            "type": "number"
+          },
+          "versions": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "policy, forecast_model, deployment",
+            "title": "Versions",
+            "type": "object"
+          },
+          "fallback_used": {
+            "description": "Components that ran on fallback.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Fallback Used",
+            "type": "array"
+          },
+          "built_on_stale_data": {
+            "default": false,
+            "title": "Built On Stale Data",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "tick",
+          "created_at",
+          "mode",
+          "candidates",
+          "selected_candidate_id",
+          "risks",
+          "signals",
+          "confidence"
+        ],
+        "title": "Recommendation",
+        "type": "object"
+      },
+      "RiskItem": {
+        "properties": {
+          "station_id": {
+            "title": "Station Id",
+            "type": "string"
+          },
+          "fuel_type": {
+            "$ref": "#/$defs/FuelType"
+          },
+          "hours_to_stockout": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "None = no stockout inside the horizon.",
+            "title": "Hours To Stockout"
+          },
+          "p_stockout": {
+            "maximum": 1,
+            "minimum": 0,
+            "title": "P Stockout",
+            "type": "number"
+          },
+          "has_backup_route": {
+            "title": "Has Backup Route",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "station_id",
+          "fuel_type",
+          "hours_to_stockout",
+          "p_stockout",
+          "has_backup_route"
+        ],
+        "title": "RiskItem",
+        "type": "object"
+      },
+      "Signal": {
+        "description": "Why an area is at risk. Shown to operators and handed to the copilot.",
+        "properties": {
+          "kind": {
+            "enum": [
+              "demand_anomaly",
+              "depletion",
+              "route_disrupted",
+              "station_outage",
+              "depot_constrained",
+              "supply_delayed",
+              "supply_reduced",
+              "stockout_risk",
+              "stale_data",
+              "other"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "severity": {
+            "enum": [
+              "info",
+              "warn",
+              "crit"
+            ],
+            "title": "Severity",
+            "type": "string"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "station_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Station Id"
+          },
+          "fuel_type": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/FuelType"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Value"
+          }
+        },
+        "required": [
+          "kind",
+          "severity",
+          "message"
+        ],
+        "title": "Signal",
+        "type": "object"
+      },
+      "SubmittedAllocation": {
+        "properties": {
+          "leg": {
+            "$ref": "#/$defs/AllocationLeg"
+          },
+          "idempotency_key": {
+            "title": "Idempotency Key",
+            "type": "string"
+          },
+          "http_status": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Http Status"
+          },
+          "sim_allocation_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Sim Allocation Id"
+          },
+          "result": {
+            "enum": [
+              "accepted",
+              "rejected",
+              "held",
+              "skipped"
+            ],
+            "title": "Result",
+            "type": "string"
+          },
+          "error_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Error Code"
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Message"
+          }
+        },
+        "required": [
+          "leg",
+          "idempotency_key",
+          "http_status",
+          "result"
+        ],
+        "title": "SubmittedAllocation",
+        "type": "object"
+      },
+      "TwinFuture": {
+        "description": "One projected future. Always a projection, never ground truth.",
+        "properties": {
+          "candidate_id": {
+            "title": "Candidate Id",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "horizon_ticks": {
+            "title": "Horizon Ticks",
+            "type": "integer"
+          },
+          "network_unmet_liters": {
+            "title": "Network Unmet Liters",
+            "type": "number"
+          },
+          "unmet_by_station": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "title": "Unmet By Station",
+            "type": "object"
+          },
+          "first_stockout_tick": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Stockout Tick"
+          },
+          "service_level": {
+            "maximum": 1,
+            "minimum": 0,
+            "title": "Service Level",
+            "type": "number"
+          },
+          "notes": {
+            "description": "e.g. 'Tongi short later'.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Notes",
+            "type": "array"
+          }
+        },
+        "required": [
+          "candidate_id",
+          "label",
+          "horizon_ticks",
+          "network_unmet_liters",
+          "unmet_by_station",
+          "first_stockout_tick",
+          "service_level"
+        ],
+        "title": "TwinFuture",
+        "type": "object"
+      }
+    },
+    "description": "One important recommendation through its whole lifecycle. Grows stage by stage.",
+    "properties": {
+      "decision_id": {
+        "title": "Decision Id",
+        "type": "string"
+      },
+      "sim_tick": {
+        "title": "Sim Tick",
+        "type": "integer"
+      },
+      "created_at": {
+        "format": "date-time",
+        "title": "Created At",
+        "type": "string"
+      },
+      "stage": {
+        "enum": [
+          "observed",
+          "predicted",
+          "candidates",
+          "projected",
+          "gated",
+          "approved",
+          "rejected",
+          "submitted",
+          "outcome",
+          "verified"
+        ],
+        "title": "Stage",
+        "type": "string"
+      },
+      "versions": {
+        "additionalProperties": {
+          "type": "string"
+        },
+        "title": "Versions",
+        "type": "object"
+      },
+      "mode": {
+        "anyOf": [
+          {
+            "enum": [
+              "MANUAL",
+              "SUPERVISED",
+              "AUTONOMOUS"
+            ],
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Mode"
+      },
+      "recommendation": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/Recommendation"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null
+      },
+      "gate": {
+        "anyOf": [
+          {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "description": "{'requires_human': bool, 'reasons': [...]}",
+        "title": "Gate"
+      },
+      "approval": {
+        "anyOf": [
+          {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "description": "{'decision': 'approved'|'rejected', 'by': str, 'reason': str}",
+        "title": "Approval"
+      },
+      "submissions": {
+        "items": {
+          "$ref": "#/$defs/SubmittedAllocation"
+        },
+        "title": "Submissions",
+        "type": "array"
+      },
+      "outcome": {
+        "anyOf": [
+          {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Outcome"
+      },
+      "twin_check": {
+        "anyOf": [
+          {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "description": "{'predicted_l', 'actual_l', 'error_l'}",
+        "title": "Twin Check"
+      }
+    },
+    "required": [
+      "decision_id",
+      "sim_tick",
+      "created_at",
+      "stage"
+    ],
+    "title": "DecisionRecord",
+    "type": "object"
+  },
+  "ExplainRequest": {
+    "properties": {
+      "kind": {
+        "enum": [
+          "decision",
+          "incident",
+          "network_summary",
+          "incident_report"
+        ],
+        "title": "Kind",
+        "type": "string"
+      },
+      "facts": {
+        "additionalProperties": true,
+        "description": "Structured facts only. The copilot must not invent numbers.",
+        "title": "Facts",
+        "type": "object"
+      }
+    },
+    "required": [
+      "kind",
+      "facts"
+    ],
+    "title": "ExplainRequest",
+    "type": "object"
+  },
+  "ExplainResponse": {
+    "properties": {
+      "text": {
+        "title": "Text",
+        "type": "string"
+      },
+      "cited_facts": {
+        "items": {
+          "type": "string"
+        },
+        "title": "Cited Facts",
+        "type": "array"
+      },
+      "source": {
+        "enum": [
+          "llm",
+          "template"
+        ],
+        "title": "Source",
+        "type": "string"
+      }
+    },
+    "required": [
+      "text",
+      "source"
+    ],
+    "title": "ExplainResponse",
+    "type": "object"
+  },
+  "SubmitAllocationsRequest": {
+    "$defs": {
+      "AllocationLeg": {
+        "description": "One POST /v1/allocations. Legs above route.max_shipment are split before they get here.",
+        "properties": {
+          "route_id": {
+            "title": "Route Id",
+            "type": "string"
+          },
+          "source_depot_id": {
+            "title": "Source Depot Id",
+            "type": "string"
+          },
+          "station_id": {
+            "title": "Station Id",
+            "type": "string"
+          },
+          "fuel_type": {
+            "$ref": "#/$defs/FuelType"
+          },
+          "quantity": {
+            "exclusiveMinimum": 0,
+            "title": "Quantity",
+            "type": "number"
+          }
+        },
+        "required": [
+          "route_id",
+          "source_depot_id",
+          "station_id",
+          "fuel_type",
+          "quantity"
+        ],
+        "title": "AllocationLeg",
+        "type": "object"
+      },
+      "FuelType": {
+        "enum": [
+          "DIESEL",
+          "PETROL",
+          "OCTANE"
+        ],
+        "title": "FuelType",
+        "type": "string"
+      }
+    },
+    "properties": {
+      "decision_id": {
+        "maxLength": 100,
+        "minLength": 1,
+        "pattern": "^[A-Za-z0-9._-]+$",
+        "title": "Decision Id",
+        "type": "string"
+      },
+      "legs": {
+        "items": {
+          "$ref": "#/$defs/AllocationLeg"
+        },
+        "maxItems": 50,
+        "minItems": 1,
+        "title": "Legs",
+        "type": "array"
+      }
+    },
+    "required": [
+      "decision_id",
+      "legs"
+    ],
+    "title": "SubmitAllocationsRequest",
+    "type": "object"
+  },
+  "HealthReport": {
+    "$defs": {
+      "ComponentHealth": {
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "healthy",
+              "degraded",
+              "down",
+              "unknown"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Detail"
+          }
+        },
+        "required": [
+          "name",
+          "status"
+        ],
+        "title": "ComponentHealth",
+        "type": "object"
+      }
+    },
+    "properties": {
+      "status": {
+        "enum": [
+          "healthy",
+          "degraded",
+          "down"
+        ],
+        "title": "Status",
+        "type": "string"
+      },
+      "components": {
+        "items": {
+          "$ref": "#/$defs/ComponentHealth"
+        },
+        "title": "Components",
+        "type": "array"
+      },
+      "tick": {
+        "anyOf": [
+          {
+            "type": "integer"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Tick"
+      },
+      "snapshot_age_seconds": {
+        "anyOf": [
+          {
+            "type": "number"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Snapshot Age Seconds"
+      }
+    },
+    "required": [
+      "status",
+      "components",
+      "tick",
+      "snapshot_age_seconds"
+    ],
+    "title": "HealthReport",
+    "type": "object"
+  }
+}
