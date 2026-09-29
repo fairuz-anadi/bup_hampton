@@ -12,6 +12,5 @@ loadtest/results
 monitoring
 deploy
 docs
-fixtures
 backend/tests
 tests
