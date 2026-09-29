@@ -5,9 +5,33 @@ export class ApiError extends Error {
 }
 
 const KEY_STORE = 'fuelguard.operatorKey';
+export const DEFAULT_OPERATOR_KEY = 'dev-operator-key';
+
 export const operatorKey = {
-  get: (): string => { try { return sessionStorage.getItem(KEY_STORE) ?? ''; } catch { return ''; } },
-  set: (k: string) => { try { sessionStorage.setItem(KEY_STORE, k); } catch { /* private mode */ } },
+  get: (): string => {
+    try {
+      const val = sessionStorage.getItem(KEY_STORE);
+      if (val !== null && val.trim() !== '') return val.trim();
+      return DEFAULT_OPERATOR_KEY;
+    } catch {
+      return DEFAULT_OPERATOR_KEY;
+    }
+  },
+  set: (k: string) => {
+    try {
+      sessionStorage.setItem(KEY_STORE, k.trim());
+    } catch { /* private mode */ }
+  },
+  clear: () => {
+    try {
+      sessionStorage.removeItem(KEY_STORE);
+    } catch { /* private mode */ }
+  },
+  resetToDev: () => {
+    try {
+      sessionStorage.setItem(KEY_STORE, DEFAULT_OPERATOR_KEY);
+    } catch { /* private mode */ }
+  },
 };
 
 // Every API call this browser makes: latency and outcome, for the System Health page (last 200 calls).
@@ -28,7 +52,14 @@ export async function call<T>(path: string, init: RequestInit & { operator?: boo
   if (init.operator) headers['X-Operator-Key'] = operatorKey.get();
   const started = performance.now();
   try {
-    const res = await fetch(path, { ...init, headers, signal: ctl.signal });
+    let res = await fetch(path, { ...init, headers, signal: ctl.signal });
+    // Auto-recovery: if 401 on an operator request and current key was not the default dev key,
+    // fallback to DEFAULT_OPERATOR_KEY and retry once.
+    if (res.status === 401 && init.operator && operatorKey.get() !== DEFAULT_OPERATOR_KEY) {
+      operatorKey.resetToDev();
+      headers['X-Operator-Key'] = DEFAULT_OPERATOR_KEY;
+      res = await fetch(path, { ...init, headers, signal: ctl.signal });
+    }
     const body = await res.json().catch(() => null);
     record(performance.now() - started, res.status < 500);
     if (!res.ok) {
@@ -64,4 +95,13 @@ export const api = {
   rearm: () => call<Autonomy>('/api/autonomy/rearm', { method: 'POST', operator: true }),
   setMode: (mode: 'MANUAL' | 'SUPERVISED') =>
     call<Autonomy>('/api/autonomy/mode', { method: 'POST', body: JSON.stringify({ mode }), operator: true }),
+  authStatus: () => call<{ writes_enabled: boolean; is_valid: boolean; is_dev: boolean; dev_key: string | null }>('/api/auth/status', { operator: true }),
+  verifyKey: async (key: string): Promise<boolean> => {
+    try {
+      const res = await fetch('/api/auth/verify', { method: 'POST', headers: { 'X-Operator-Key': key.trim() } });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  },
 };

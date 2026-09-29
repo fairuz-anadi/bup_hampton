@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { api, ApiError, operatorKey } from '../api/client';
+import { api, ApiError, operatorKey, DEFAULT_OPERATOR_KEY } from '../api/client';
 import { useLive } from '../api/live';
 import type { AllocationLeg, DecisionRecord, ExplainResponse, Gate, NetworkSnapshot, Recommendation } from '../api/types';
 import { mockExplain } from '../mocks';
@@ -166,7 +166,7 @@ export function Review({ rec, gate, stage, onDone }: { rec: Recommendation; gate
       refresh();
     } catch (e) {
       const text = e instanceof ApiError
-        ? e.status === 401 ? 'Operator key missing or wrong.' : e.status === 503 && e.code === 'WRITES_DISABLED' ? 'Approvals are switched off on this backend (no operator key configured).' : humanize(snap, e.message)
+        ? e.status === 401 ? `Operator key missing or wrong (default is: ${DEFAULT_OPERATOR_KEY}).` : e.status === 503 && e.code === 'WRITES_DISABLED' ? 'Approvals are switched off on this backend (no operator key configured).' : humanize(snap, e.message)
         : 'Request failed';
       setMsg({ tone: 'crit', text });
     } finally { setBusy(null); }
@@ -195,8 +195,8 @@ export function Review({ rec, gate, stage, onDone }: { rec: Recommendation; gate
             <label className="stack grow" style={{ gap: 4, minWidth: 200 }}><span className="kicker">Note for the audit record</span>
               <input className="field" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Optional to approve, required to reject" maxLength={500} disabled={locked} /></label>
             {keyOpen ? (
-              <label className="stack" style={{ gap: 4, width: 200 }}><span className="kicker">Operator key</span>
-                <input className="field" type="password" autoComplete="off" value={key} onChange={(e) => setKey(e.target.value)} placeholder="Needed to approve" disabled={locked} /></label>
+              <label className="stack" style={{ gap: 4, width: 220 }}><span className="kicker">Operator key</span>
+                <input className="field" type="password" autoComplete="off" value={key} onChange={(e) => setKey(e.target.value)} placeholder={`Key (dev: ${DEFAULT_OPERATOR_KEY})`} disabled={locked} /></label>
             ) : <button className="link xsmall" onClick={() => setKeyOpen(true)}>Operator key saved · change</button>}
           </div>
           <div className="row">

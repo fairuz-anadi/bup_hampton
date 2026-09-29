@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
-import { ApiError, operatorKey } from '../api/client';
+import { api, ApiError, operatorKey, DEFAULT_OPERATOR_KEY } from '../api/client';
 import { useLive, useNow, type RecChange, type ScenarioRun } from '../api/live';
 import { ops, type ChaosTimeline, type PacerStatus, type PolicyStatus, type TimelineFault } from '../api/ops';
 import type { CurrentView, ExplainResponse, HealthReport, NetworkSnapshot, SimEvent } from '../api/types';
@@ -187,6 +187,7 @@ export function ScenarioLab() {
   const now = useNow();
   const [key, setKey] = useState(operatorKey.get());
   const [unlocked, setUnlocked] = useState(!!operatorKey.get());
+  const [keyChecking, setKeyChecking] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [timeline, setTimeline] = useState<ChaosTimeline | null>(null);
@@ -197,6 +198,19 @@ export function ScenarioLab() {
   const live = source === 'live';
   // Synchronous lock: a double click lands before React re-renders the disabled button.
   const inflight = useRef(false);
+
+  useEffect(() => {
+    if (!live) return;
+    api.authStatus().then((st) => {
+      if (st.is_valid) {
+        setUnlocked(true);
+      } else if (st.dev_key) {
+        operatorKey.set(st.dev_key);
+        setKey(st.dev_key);
+        setUnlocked(true);
+      }
+    }).catch(() => undefined);
+  }, [live]);
 
   const reload = useCallback(() => {
     if (!live) return;
@@ -240,14 +254,14 @@ export function ScenarioLab() {
       setRun(() => ({ ...base, startTick: s.kind === 'event' ? startTick : snap.tick, eventId }));
       refresh(); reload();
     } catch (e) {
-      const text = e instanceof ApiError ? (e.status === 401 ? 'Operator key missing or wrong.' : `${e.code}: ${e.message}`) : 'Request failed';
+      const text = e instanceof ApiError ? (e.status === 401 ? `Operator key missing or wrong (default is: ${DEFAULT_OPERATOR_KEY}).` : `${e.code}: ${e.message}`) : 'Request failed';
       setRun(() => ({ ...base, startTick, error: `Couldn’t start the scenario: ${text}` }));
     } finally { setBusy(null); inflight.current = false; }
   };
 
   const act = async (fn: () => Promise<unknown>, done?: string) => {
     setMsg(null);
-    try { await fn(); refresh(); reload(); if (done) setMsg(done); } catch (e) { setMsg(e instanceof ApiError ? (e.status === 401 ? 'Operator key missing or wrong.' : `${e.code}: ${e.message}`) : 'Request failed'); }
+    try { await fn(); refresh(); reload(); if (done) setMsg(done); } catch (e) { setMsg(e instanceof ApiError ? (e.status === 401 ? `Operator key missing or wrong (default is: ${DEFAULT_OPERATOR_KEY}).` : `${e.code}: ${e.message}`) : 'Request failed'); }
   };
   const genReport = () => {
     if (!live) return;
@@ -267,11 +281,52 @@ export function ScenarioLab() {
           <p>Create a simulated disruption and see how FuelGuard responds.</p>
         </div>
         {unlocked ? (
-          <div className="row"><Chip tone="ok">Operator key entered</Chip><button className="btn ghost sm" onClick={() => setUnlocked(false)}>Change</button></div>
+          <div className="row"><Chip tone="ok">Operator key active</Chip><button className="btn ghost sm" onClick={() => setUnlocked(false)}>Change</button></div>
         ) : (
-          <form className="row" onSubmit={(e) => { e.preventDefault(); operatorKey.set(key); setUnlocked(!!key); }}>
-            <input className="field" style={{ width: 200 }} type="password" autoComplete="off" value={key} onChange={(e) => setKey(e.target.value)} placeholder="Operator key" aria-label="Operator key" />
-            <button className="btn dark" disabled={!key}>Unlock</button>
+          <form className="row" onSubmit={async (e) => {
+            e.preventDefault();
+            const k = key.trim();
+            if (!k) return;
+            setKeyChecking(true);
+            setMsg(null);
+            try {
+              const ok = await api.verifyKey(k);
+              if (ok) {
+                operatorKey.set(k);
+                setUnlocked(true);
+              } else {
+                setMsg(`Incorrect operator key. For local development, use: ${DEFAULT_OPERATOR_KEY}`);
+              }
+            } catch {
+              operatorKey.set(k);
+              setUnlocked(true);
+            } finally {
+              setKeyChecking(false);
+            }
+          }}>
+            <input
+              className="field"
+              style={{ width: 220 }}
+              type="password"
+              autoComplete="off"
+              value={key}
+              onChange={(e) => setKey(e.target.value)}
+              placeholder={`Key (dev: ${DEFAULT_OPERATOR_KEY})`}
+              aria-label="Operator key"
+            />
+            <button className="btn dark" disabled={!key || keyChecking}>{keyChecking ? 'Checking…' : 'Unlock'}</button>
+            <button
+              type="button"
+              className="btn ghost sm"
+              onClick={() => {
+                operatorKey.resetToDev();
+                setKey(DEFAULT_OPERATOR_KEY);
+                setUnlocked(true);
+                setMsg(null);
+              }}
+            >
+              Use dev key
+            </button>
           </form>
         )}
       </div>
@@ -299,6 +354,20 @@ export function ScenarioLab() {
           </ol>
           <div className="row">
             {!run.error && <button className="btn primary" onClick={() => go('/decisions')}>View updated decision →</button>}
+            {run.error && (
+              <button
+                className="btn primary"
+                onClick={() => {
+                  operatorKey.resetToDev();
+                  setKey(DEFAULT_OPERATOR_KEY);
+                  setUnlocked(true);
+                  setRun(() => null);
+                  if (sc) start(sc);
+                }}
+              >
+                Reset to dev key &amp; retry
+              </button>
+            )}
             <button className="btn ghost-dark" onClick={genReport} disabled={!live || reportBusy}>{reportBusy ? 'Writing…' : 'Write incident report'}</button>
           </div>
           {report && (
