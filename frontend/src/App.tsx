@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useLive, useNow } from './api/live';
 import { ops } from './api/ops';
 import { ControlBadge } from './components/Control';
+import { SimControl } from './components/SimControl';
 import { ago, simClock } from './lib/format';
 import { useRoute } from './lib/router';
 import { Overview } from './screens/Overview';
@@ -82,7 +83,7 @@ export function App() {
       <main className="main">
         <div className="topline">
           <span className="simstrip"><span className="hatch" />Simulation only · no real fuel is moved</span>
-          <ControlBadge />
+          <div className="row" style={{ gap: 10 }}><SimControl /><ControlBadge /></div>
         </div>
         {source === 'offline' && <div className="banner crit" role="alert"><b>Backend unreachable.</b> Showing the last data we received ({lastOkAt ? ago((now - lastOkAt) / 1000) : '—'}). Approvals are paused; retrying every 2 s.</div>}
         {source === 'live' && stale && <div className="banner crit" role="alert"><b>Simulator data is out of date.</b> FuelGuard will only recommend until fresh data arrives. <span className="faint">{snap?.freshness?.reasons.slice(0, 2).join('; ')}</span></div>}
