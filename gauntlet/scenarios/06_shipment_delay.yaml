@@ -1,0 +1,12 @@
+id: "scenario-06-delay"
+name: "Shipment Delay (Gazipur Petrol Resupply +8 Ticks)"
+duration_ticks: 96
+seed: 42
+events:
+  - type: "shipment_delay"
+    start_tick: 10
+    duration_ticks: 16
+    parameters:
+      depot_id: "depot-gazipur"
+      fuel: "PETROL"
+      delay_ticks: 8

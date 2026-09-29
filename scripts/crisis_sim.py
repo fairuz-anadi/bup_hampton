@@ -1,5 +1,7 @@
 """Stress the simple reorder rule: long horizon + injected crises."""
-import json, urllib.request, urllib.error
+import json
+import urllib.error
+import urllib.request
 
 B = "http://localhost:8000"
 

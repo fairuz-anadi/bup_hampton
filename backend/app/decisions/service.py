@@ -12,7 +12,7 @@ from __future__ import annotations
 import logging
 from datetime import UTC, datetime
 
-from app.contracts import AllocationLeg, DecisionRecord, Recommendation
+from app.contracts import AllocationLeg, Candidate, DecisionRecord, Recommendation
 from app.db.repo import DecisionRepo
 from app.obs.logging import log_event
 from app.obs.metrics import DECISIONS, TWIN_ERROR, TWIN_ERROR_HIST
@@ -21,6 +21,26 @@ from app.sim.errors import SimulatorError
 from app.state.store import StateStore
 
 REVIEWABLE = ("projected", "gated")
+
+
+def normalize_recommendation(rec: Recommendation) -> Recommendation:
+    """Accept both recommendation shapes in contracts.py.
+
+    The intelligence service fills `legs`, `policy` and `twin_futures` and leaves `candidates` empty;
+    the review flow works on `candidates` + `selected_candidate_id` + `futures`. Fill in whichever side
+    is missing so both work.
+    """
+    update: dict = {}
+    if not rec.futures and rec.twin_futures:
+        update["futures"] = rec.twin_futures
+    if not rec.candidates and rec.legs:
+        policy = rec.policy or "selected"
+        update["candidates"] = [Candidate(id="noop", policy="noop", legs=[]),
+                                Candidate(id=policy, policy=policy, legs=rec.legs)]
+        update["selected_candidate_id"] = policy
+    if rec.policy and "policy" not in rec.versions:
+        update["versions"] = {**rec.versions, "policy": rec.policy}
+    return rec.model_copy(update=update) if update else rec
 
 
 class DecisionError(Exception):
@@ -39,6 +59,7 @@ class DecisionService:
     async def create(self, rec: Recommendation, gate: dict | None = None, mode: str | None = None) -> DecisionRecord:
         if self.repo.get(rec.id):
             raise DecisionError(409, "DECISION_EXISTS", f"Decision {rec.id} already exists.")
+        rec = normalize_recommendation(rec)
         if rec.selected_candidate_id not in {c.id for c in rec.candidates}:
             raise DecisionError(422, "UNKNOWN_CANDIDATE", "selected_candidate_id is not one of the candidates.")
         record = DecisionRecord(

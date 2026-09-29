@@ -48,6 +48,17 @@ async def test_create_approve_submits_selected_legs(svc, fake_sim):
     assert exc.value.code == "NOT_REVIEWABLE"
 
 
+async def test_intel_shaped_recommendation_is_accepted(svc, fake_sim):
+    # The intelligence service sends legs + twin_futures and no candidates.
+    rec = Recommendation(id="rec-intel", tick=0, created_at="2026-01-01T00:00:00Z", policy="lp-v2", legs=[LEG],
+                         twin_futures=recommendation().futures)
+    record = await svc.create(rec)
+    assert record.recommendation.selected_candidate_id == "lp-v2"
+    assert record.recommendation.futures[0].network_unmet_liters == 200.0
+    done = await svc.approve("rec-intel", by="anadi", reason=None)
+    assert done.stage == "submitted" and "fg-rec-intel-0" in fake_sim.posted
+
+
 async def test_modify_replaces_legs(svc, fake_sim):
     await svc.create(recommendation())
     modified = LEG.model_copy(update={"quantity": 2000})

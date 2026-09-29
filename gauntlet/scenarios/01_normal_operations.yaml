@@ -1,0 +1,5 @@
+id: "scenario-01-normal"
+name: "Normal Operations (96 Ticks)"
+duration_ticks: 96
+seed: 42
+events: []

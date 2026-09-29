@@ -1,0 +1,11 @@
+id: "scenario-02-spike"
+name: "Demand Spike in Dhaka (1.8x)"
+duration_ticks: 96
+seed: 42
+events:
+  - type: "demand_spike"
+    start_tick: 20
+    duration_ticks: 16
+    parameters:
+      region_ids: ["region-dhaka"]
+      multiplier: 1.8

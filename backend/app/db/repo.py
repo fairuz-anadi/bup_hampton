@@ -145,7 +145,10 @@ class DecisionRepo:
     async def _write(self, kind: str, item) -> None:
         async with self._pool.acquire() as con:
             if kind == "decision":
-                await con.execute(UPSERT, item.decision_id, item.sim_tick, item.stage, item.created_at,
+                created = item.created_at
+                if isinstance(created, str):  # contracts allow an ISO string here
+                    created = datetime.fromisoformat(created.replace("Z", "+00:00"))
+                await con.execute(UPSERT, item.decision_id, item.sim_tick, item.stage, created,
                                   item.model_dump_json())
             else:
                 await con.execute("INSERT INTO policy_runs (policy, scenario_id, run) VALUES ($1, $2, $3::jsonb)",

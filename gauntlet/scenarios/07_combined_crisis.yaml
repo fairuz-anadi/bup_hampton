@@ -1,0 +1,23 @@
+id: "scenario-07-combined"
+name: "Combined Crisis (Spike + Disruption + Delay)"
+duration_ticks: 96
+seed: 42
+events:
+  - type: "demand_spike"
+    start_tick: 16
+    duration_ticks: 24
+    parameters:
+      region_ids: ["region-dhaka"]
+      multiplier: 1.8
+  - type: "route_disruption"
+    start_tick: 20
+    duration_ticks: 16
+    parameters:
+      route_ids: ["route-gazipur-mirpur"]
+  - type: "shipment_delay"
+    start_tick: 25
+    duration_ticks: 16
+    parameters:
+      depot_id: "depot-gazipur"
+      fuel: "PETROL"
+      delay_ticks: 8
