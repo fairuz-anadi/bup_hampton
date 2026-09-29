@@ -1,0 +1,10 @@
+id: "scenario-03-route"
+name: "Route Disruption (Gazipur -> Mirpur)"
+duration_ticks: 96
+seed: 42
+events:
+  - type: "route_disruption"
+    start_tick: 24
+    duration_ticks: 20
+    parameters:
+      route_ids: ["route-gazipur-mirpur"]

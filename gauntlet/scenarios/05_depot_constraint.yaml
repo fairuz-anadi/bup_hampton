@@ -1,0 +1,11 @@
+id: "scenario-05-depot"
+name: "Depot Constraint (Gazipur Throughput Restricted)"
+duration_ticks: 96
+seed: 42
+events:
+  - type: "depot_constraint"
+    start_tick: 15
+    duration_ticks: 24
+    parameters:
+      depot_ids: ["depot-gazipur"]
+      max_dispatch_per_tick: 3000

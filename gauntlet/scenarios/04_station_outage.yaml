@@ -1,0 +1,10 @@
+id: "scenario-04-outage"
+name: "Station Outage (Tongi Outage)"
+duration_ticks: 96
+seed: 42
+events:
+  - type: "station_outage"
+    start_tick: 30
+    duration_ticks: 12
+    parameters:
+      station_ids: ["station-tongi"]
