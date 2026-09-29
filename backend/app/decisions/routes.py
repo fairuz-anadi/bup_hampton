@@ -166,3 +166,33 @@ def set_mode(body: ModeBody, request: Request) -> dict:
 @router.get("/scoreboard", summary="Counterfactual scoreboard (projected) + verified Twin error")
 def get_scoreboard(request: Request) -> dict:
     return scoreboard(_svc(request).decisions.repo.list(500))
+
+
+@router.get("/decisions/multiagent/latest", summary="Latest Multi-Agent Decision deliberation and consensus")
+def get_latest_multiagent(request: Request) -> dict:
+    svc = _svc(request)
+    rec, gate = _current_rec(svc)
+    if rec and rec.multiagent_decision:
+        return {
+            "decision_id": rec.id,
+            "tick": rec.tick,
+            "multiagent_decision": rec.multiagent_decision.model_dump(mode="json"),
+            "confidence": rec.confidence,
+            "human_review_required": rec.human_review_required,
+        }
+    # Check decision repo
+    records = svc.decisions.repo.list(20)
+    for r in records:
+        if r.recommendation and r.recommendation.multiagent_decision:
+            return {
+                "decision_id": r.decision_id,
+                "tick": r.sim_tick,
+                "multiagent_decision": r.recommendation.multiagent_decision.model_dump(mode="json"),
+                "confidence": r.recommendation.confidence,
+                "human_review_required": r.recommendation.human_review_required,
+            }
+    return {
+        "status": "unavailable",
+        "message": "No multi-agent deliberations recorded yet.",
+    }
+

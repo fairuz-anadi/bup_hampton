@@ -26,6 +26,7 @@ from app.intel.baseline import fallback_predict
 from app.intel.detection import DetectionEngine
 from app.intel.greedy import GreedyPolicy
 from app.intel.lp import LPOptimizer
+from app.intel.multiagent import MultiAgentDecisionSystem
 from app.intel.risk import RiskEngine
 from app.intel.twin import DecisionTwin
 from app.obs.logging import log_event
@@ -45,6 +46,7 @@ class IntelligenceService:
         self.lp_optimizer = LPOptimizer()
         self.greedy_policy = GreedyPolicy(horizon_ticks=horizon_ticks)
         self.twin = DecisionTwin(horizon_ticks=horizon_ticks)
+        self.multiagent = MultiAgentDecisionSystem()
         self._forecaster_offline_until = 0.0
 
     def _get_forecast(
@@ -99,6 +101,7 @@ class IntelligenceService:
         snapshot: NetworkSnapshot,
         demand_history: list[dict[str, Any]] | None = None,
         force_containment: bool = False,
+        enable_multiagent: bool = True,
     ) -> Recommendation:
         rec_id = f"rec-{uuid.uuid4().hex[:8]}"
         created_at = datetime.datetime.now(datetime.UTC).isoformat()
@@ -234,6 +237,34 @@ class IntelligenceService:
         ]
         selected_candidate_id = "lp-v2" if not lp_fallback else "greedy-v1"
 
+        # Multi-Agent Decision System (OpenAI Executive + HF Critic + Specialists)
+        multiagent_decision = None
+        if enable_multiagent and os.getenv("MULTIAGENT_ENABLED", "true").lower() == "true":
+            try:
+                multiagent_decision = self.multiagent.evaluate_and_deliberate(
+                    snapshot=snapshot,
+                    forecasts=forecasts,
+                    risks=risks,
+                    signals=signals,
+                    candidate_id=selected_candidate_id,
+                    candidate_legs=lp_legs if selected_candidate_id == "lp-v2" else greedy_legs,
+                    twin_futures=twin_futures,
+                )
+                if multiagent_decision:
+                    # Incorporate multiagent consensus into confidence and review gate
+                    confidence = round((confidence * 0.6) + (multiagent_decision.consensus_score * 0.4), 2)
+                    if snapshot.is_stale:
+                        confidence = min(confidence, 0.55)
+                    if multiagent_decision.requires_human_override:
+                        human_review_required = True
+                    if (
+                        multiagent_decision.selected_policy != selected_candidate_id
+                        and multiagent_decision.selected_policy in ("noop", "greedy-v1", "lp-v2")
+                    ):
+                        selected_candidate_id = multiagent_decision.selected_policy
+            except Exception as exc:
+                log_event("intelligence.multiagent_error", error=repr(exc)[:150])
+
         deployment_ver = os.getenv("DEPLOYMENT_VERSION", "dev")
         versions = {
             "policy": policy_name,
@@ -265,6 +296,7 @@ class IntelligenceService:
             versions=versions,
             fallback_used=fallback_used,
             built_on_stale_data=snapshot.is_stale,
+            multiagent_decision=multiagent_decision,
         )
 
         # Record for future Twin verification

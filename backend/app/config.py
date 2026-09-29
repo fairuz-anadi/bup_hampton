@@ -44,6 +44,13 @@ class Settings(BaseSettings):
     # Off until the intel lane reads the real demand-history fields (demand_liters / fuel_type).
     intel_use_demand_history: bool = False
 
+    # Multiagent decision system (OpenAI executive + Hugging Face critic)
+    multiagent_enabled: bool = True
+    multiagent_timeout_seconds: float = Field(4.0, gt=0)
+    huggingface_api_key: SecretStr = SecretStr("")
+    hf_token: SecretStr = SecretStr("")
+    hf_model: str = "meta-llama/Llama-3.1-8B-Instruct"
+
     log_level: str = "INFO"
     deployment_version: str = "dev"
 
