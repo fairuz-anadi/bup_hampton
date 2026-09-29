@@ -32,12 +32,12 @@ export function HistoryScreen() {
 
   return (
     <>
-    <BackHead back="#/intelligence" label="Intelligence" title="Decision history" sub="Every recommendation through its lifecycle. Pick one and replay it stage by stage." />
+    <BackHead back="#/decisions" label="Decision Center" title="Decision history" sub="Every recommendation through its lifecycle. Pick one and replay it stage by stage." />
     <div className="mc">
       <Card className="s7" q="Audit" title="Decision history" right={<span className="xsmall faint">{Object.entries(counts).map(([k, v]) => `${v} ${stageLabel(k)}`).join(' · ')}</span>}>
         {rows.length === 0 ? <p className="empty">No decisions yet. A record appears when the engine recommends a shipment.</p> : (
           <div className="tbl"><table>
-            <thead><tr><th>Tick</th><th>Decision</th><th>Plan</th><th className="n">Conf.</th><th>Stage</th></tr></thead>
+            <thead><tr><th>Step</th><th>Decision</th><th>Plan</th><th className="n">Conf.</th><th>Stage</th></tr></thead>
             <tbody>{rows.map((r) => {
               const legs = r.recommendation ? recLegs(r.recommendation) : [];
               const conf = r.gate?.confidence ?? r.recommendation?.confidence;
@@ -64,7 +64,7 @@ function RecordDetail({ r }: { r: DecisionRecord }) {
   const { snap } = useLive();
   const rec = r.recommendation;
   return (
-    <Card q={`Decision · tick ${r.sim_tick}`} title={r.decision_id} right={<ModeChip mode={r.mode as never} />}>
+    <Card q={`Decision · step ${r.sim_tick}`} title={r.decision_id} right={<ModeChip mode={r.mode as never} />}>
       <div className="stack" style={{ gap: 14 }}>
         <Replay record={r} />
         {rec && (

@@ -55,7 +55,7 @@ export function NetworkMap({ snap, highlight = [], onStation, states }: { snap: 
             <g key={reg.id}>
               <rect x={8} y={y0} width={W - 16} height={y1 - y0} rx={10} fill="none" stroke="var(--line)" strokeDasharray="3 4" />
               <text x={18} y={y0 + 13} style={{ font: '600 9.5px var(--f-mono)', letterSpacing: '.08em', fill: 'var(--ink-3)' }}>
-                {reg.name.toUpperCase()} · DEMAND ×{reg.demand_factor.toFixed(2)}
+                {reg.name.toUpperCase()}{Math.abs(reg.demand_factor - 1) > 0.05 ? ` · DEMAND ${reg.demand_factor.toFixed(1)}× NORMAL` : ''}
               </text>
             </g>
           );
@@ -71,9 +71,9 @@ export function NetworkMap({ snap, highlight = [], onStation, states }: { snap: 
               <path d={`M${p0} C${p1} ${p2} ${p3}`} fill="none" stroke={down ? 'var(--crit)' : hl ? 'var(--act)' : 'var(--ink-3)'}
                 strokeWidth={hl ? 3.5 : down ? 2 : 1.5} strokeDasharray={down ? '6 5' : undefined} opacity={hl || down ? 1 : 0.7} />
               <g transform={`translate(${mid[0]},${mid[1]})`}>
-                <rect x={-34} y={-10} width={68} height={20} rx={4} fill="var(--surface)" stroke={down ? 'var(--crit)' : 'var(--line)'} />
+                <rect x={down ? -48 : -30} y={-10} width={down ? 96 : 60} height={20} rx={4} fill="var(--surface)" stroke={down ? 'var(--crit)' : 'var(--line)'} />
                 <text textAnchor="middle" y={4} style={{ font: '500 10px var(--f-mono)', fill: down ? 'var(--crit)' : 'var(--ink-2)' }}>
-                  {down ? (until != null ? `✕ to t${until}` : '✕ down') : `${r.transit_ticks} ticks`}
+                  {down ? (until != null ? `✕ closed · ${Math.max(0, until - snap.tick)} steps` : '✕ closed') : `${r.transit_ticks} steps`}
                 </text>
               </g>
             </g>
@@ -89,7 +89,7 @@ export function NetworkMap({ snap, highlight = [], onStation, states }: { snap: 
           return (
             <g key={leg.allocation_id}>
               <circle cx={x} cy={y} r={6.5} fill={fuelColor(leg.fuel_type)} stroke="var(--surface)" strokeWidth={2}>
-                <title>{`${Math.round(leg.quantity).toLocaleString()} L ${leg.fuel_type} · ${leg.status} · arrives t${leg.expected_arrival_tick ?? '?'}`}</title>
+                <title>{`${Math.round(leg.quantity).toLocaleString()} L ${leg.fuel_type} · ${leg.status === 'PENDING' ? 'leaving' : 'on the way'} · arrives at step ${leg.expected_arrival_tick ?? '?'}`}</title>
               </circle>
             </g>
           );
@@ -99,7 +99,7 @@ export function NetworkMap({ snap, highlight = [], onStation, states }: { snap: 
             <rect width={NODE_W} height={NODE_H} rx={12} fill="var(--dark)" stroke={d.status === 'OPEN' ? 'var(--dark)' : 'var(--warn)'} strokeWidth={1.5} />
             <text x={10} y={20} style={{ font: '600 13px var(--f-display)', fill: 'var(--on-dark)' }}>{placeName(snap, d.id)} depot</text>
             <text x={10} y={36} style={{ font: '500 10px var(--f-mono)', fill: d.status === 'OPEN' ? 'var(--on-dark-2)' : 'var(--warn)' }}>
-              {d.status} · {Math.round(d.dispatch_capacity_per_tick / 1000)}k L/tick
+              {d.status === 'OPEN' ? 'Open' : d.status === 'CONSTRAINED' ? 'Constrained' : 'Closed'} · up to {Math.round(d.dispatch_capacity_per_tick / 1000)}k L/step
             </text>
             <MiniBars inv={d.inventory} cap={d.capacity} x={10} y={44} />
           </g>
@@ -116,11 +116,11 @@ export function NetworkMap({ snap, highlight = [], onStation, states }: { snap: 
               <text x={10} y={20} style={{ font: '600 13px var(--f-display)', fill: 'var(--ink)' }}>{placeName(snap, s.id)}</text>
               {st ? (
                 <text x={10} y={36} style={{ font: '600 10.5px var(--f-body)', fill: toneColor(st.tone) }}>
-                  ● {st.label}<tspan style={{ fill: 'var(--ink-3)', fontWeight: 500 }}>{one ? ' · 1 route' : ''}{s.demand_multiplier > 1.05 ? ` · ×${s.demand_multiplier.toFixed(1)}` : ''}</tspan>
+                  ● {st.label}<tspan style={{ fill: 'var(--ink-3)', fontWeight: 500 }}>{s.demand_multiplier > 1.05 ? ` · demand ${s.demand_multiplier.toFixed(1)}×` : one ? ' · 1 route' : ''}</tspan>
                 </text>
               ) : (
                 <text x={10} y={36} style={{ font: '500 10px var(--f-mono)', fill: s.status !== 'OPEN' ? 'var(--crit)' : 'var(--ink-3)' }}>
-                  {s.status === 'OPEN' ? `×${s.demand_multiplier.toFixed(1)} demand` : 'OUTAGE'}{one ? ' · 1 route' : ''}
+                  {s.status === 'OPEN' ? `demand ${s.demand_multiplier.toFixed(1)}×` : 'Unavailable'}{one ? ' · 1 route' : ''}
                 </text>
               )}
               <MiniBars inv={s.inventory} cap={s.capacity} x={10} y={44} />
@@ -129,9 +129,9 @@ export function NetworkMap({ snap, highlight = [], onStation, states }: { snap: 
         })}
       </svg>
       <div className="row xsmall muted" style={{ padding: '4px 4px 0', gap: 14 }}>
-        {FUELS.map((f) => <span key={f} className="row" style={{ gap: 5 }}><i style={{ width: 9, height: 9, borderRadius: 5, background: fuelColor(f), display: 'inline-block' }} />{f.toLowerCase()} in transit</span>)}
-        <span className="row" style={{ gap: 5 }}><i style={{ width: 18, borderTop: '2px dashed var(--crit)', display: 'inline-block' }} />disrupted</span>
-        {highlight.length > 0 && <span className="row" style={{ gap: 5 }}><i style={{ width: 18, borderTop: '3px solid var(--act)', display: 'inline-block' }} />recommended</span>}
+        {FUELS.map((f) => <span key={f} className="row" style={{ gap: 5 }}><i style={{ width: 9, height: 9, borderRadius: 5, background: fuelColor(f), display: 'inline-block' }} />{f.toLowerCase()} on the way</span>)}
+        <span className="row" style={{ gap: 5 }}><i style={{ width: 18, borderTop: '2px dashed var(--crit)', display: 'inline-block' }} />route closed</span>
+        {highlight.length > 0 && <span className="row" style={{ gap: 5 }}><i style={{ width: 18, borderTop: '3px solid var(--act)', display: 'inline-block' }} />recommended shipment</span>}
       </div>
     </div>
   );
@@ -147,7 +147,7 @@ function MiniBars({ inv, cap, x, y }: { inv: Record<string, number | undefined>;
           <g key={f} transform={`translate(${i * (w + 4)},0)`}>
             <rect width={w} height={6} rx={3} fill="var(--sunken)" />
             <rect width={Math.max(share > 0 ? 3 : 0, w * share)} height={6} rx={3} fill={share < 0.2 ? 'var(--crit)' : share < 0.4 ? 'var(--warn)' : fuelColor(f)} />
-            <title>{`${f}: ${Math.round(share * 100)}%`}</title>
+            <title>{`${f.charAt(0) + f.slice(1).toLowerCase()}: ${Math.round(share * 100)}% full`}</title>
           </g>
         );
       })}

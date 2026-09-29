@@ -78,9 +78,9 @@ export function SystemHealth() {
             </div>))}</div>
         </section>
         <section className="card s6">
-          <div className="hd"><div className="stack" style={{ gap: 4 }}><span className="q">Recent activity</span><h3>What the system did</h3></div><span className="xsmall muted">simulated ticks</span></div>
-          {feed.length ? <div className="feed">{feed.map((a, i) => <div key={i}><span className="tk">t{a.tick}</span><span className={`d ${a.tone}`} /><span>{a.text}</span></div>)}</div>
-            : <p className="empty">Nothing yet. Run a scenario in the Simulation Lab.</p>}
+          <div className="hd"><div className="stack" style={{ gap: 4 }}><span className="q">Recent activity</span><h3>What the system did</h3></div><span className="xsmall muted">simulation steps</span></div>
+          {feed.length ? <div className="feed">{feed.map((a, i) => <div key={i}><span className="tk">step {a.tick}</span><span className={`d ${a.tone}`} /><span>{a.text}</span></div>)}</div>
+            : <p className="empty">Nothing yet. Start a scenario in the Scenario Lab.</p>}
         </section>
       </div>
 

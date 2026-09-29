@@ -9,7 +9,7 @@ export const hours = (h: number | null | undefined) =>
 export const ago = (s: number | null | undefined) =>
   s == null ? '—' : s < 2 ? 'just now' : s < 60 ? `${Math.round(s)} s ago` : `${Math.round(s / 60)} min ago`;
 export const fuelName = (f: string) => f.charAt(0) + f.slice(1).toLowerCase();
-export const eventName = (t: string) => t.replace(/_/g, ' ').replace(/^./, (c) => c.toUpperCase());
+export { eventTitle as eventName } from './copy';
 
 /** "station-mirpur" -> "Mirpur", using snapshot names when available. */
 export function placeName(snap: NetworkSnapshot | null, id: string | null | undefined): string {

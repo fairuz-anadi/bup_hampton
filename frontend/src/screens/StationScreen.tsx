@@ -41,23 +41,23 @@ export function StationScreen({ id }: { id?: string }) {
       </div>
       <div className="mc">
         <Card className="s5" q={`${region?.name ?? st.region_id} · ${st.demand_profile.replace(/_/g, ' ')}`} title={st.name || placeName(snap, st.id)}
-          right={<Chip tone={st.status === 'OPEN' ? 'ok' : 'crit'}>{st.status.toLowerCase()}</Chip>}>
+          right={<Chip tone={st.status === 'OPEN' ? 'ok' : 'crit'}>{st.status === 'OPEN' ? 'open' : 'unavailable'}</Chip>}>
           <div className="stack" style={{ gap: 14 }}>
             <InventoryBars inventory={st.inventory} capacity={st.capacity} inTransit={snap.in_transit_totals[st.id]} />
             <div className="tbl"><table>
-              <thead><tr><th>Fuel</th><th className="n">In tank</th><th className="n">Capacity</th><th className="n">In transit</th><th className="n">Stockout in</th></tr></thead>
+              <thead><tr><th>Fuel</th><th className="n">In tank</th><th className="n">Capacity</th><th className="n">On the way</th><th className="n">Runs short in</th></tr></thead>
               <tbody>{FUELS.map((f) => {
                 const r = risks.find((x) => x.fuel_type === f);
                 return (<tr key={f}><td>{fuelName(f)}</td><td className="n">{litres(st.inventory[f])}</td><td className="n">{litres(st.capacity[f])}</td>
                   <td className="n">{litres(snap.in_transit_totals[st.id]?.[f] ?? 0)}</td>
-                  <td className="n">{r ? <span style={{ color: r.p_stockout >= 0.6 ? 'var(--crit)' : undefined }}>{hours(r.hours_to_stockout)} · P {r.p_stockout.toFixed(2)}</span> : '—'}</td></tr>);
+                  <td className="n">{r ? <span style={{ color: r.p_stockout >= 0.6 ? 'var(--crit)' : undefined }}>{hours(r.hours_to_stockout)} · {Math.round(r.p_stockout * 100)}% likely</span> : '—'}</td></tr>);
               })}</tbody>
             </table></div>
-            <p className="xsmall muted">Demand multiplier ×{st.demand_multiplier.toFixed(2)} · region factor ×{region?.demand_factor.toFixed(2) ?? '—'}</p>
+            <p className="xsmall muted">Current demand {st.demand_multiplier.toFixed(1)}× normal · region {region?.demand_factor.toFixed(1) ?? '—'}× normal</p>
           </div>
         </Card>
 
-        <Card className="s7" q="Demand" title="Observed demand per tick" right={<span className="xsmall faint">simulator /v1/demand-history</span>}>
+        <Card className="s7" q="Demand" title="Observed demand per simulation step" right={<span className="xsmall faint">simulator /v1/demand-history</span>}>
           {source !== 'live' ? <p className="empty">Demand history needs the live backend.</p>
             : histErr ? <p className="note warn">{histErr}</p>
             : !hist ? <Skeleton lines={4} /> : <DemandChart obs={hist} />}
@@ -67,8 +67,8 @@ export function StationScreen({ id }: { id?: string }) {
           <div className="list">
             {routes.map((r) => (
               <div key={r.id} className="row between small">
-                <span>{routeName(snap, r.id)} <span className="xsmall faint">· {r.transit_ticks} ticks · max {litres(r.max_shipment)}</span></span>
-                <Chip tone={r.status === 'AVAILABLE' ? 'ok' : 'crit'}>{r.status.toLowerCase()}</Chip>
+                <span>{routeName(snap, r.id)} <span className="xsmall faint">· {r.transit_ticks} steps · max {litres(r.max_shipment)}</span></span>
+                <Chip tone={r.status === 'AVAILABLE' ? 'ok' : 'crit'}>{r.status === 'AVAILABLE' ? 'open' : 'closed'}</Chip>
               </div>
             ))}
           </div>
@@ -78,13 +78,13 @@ export function StationScreen({ id }: { id?: string }) {
             {incoming.map((l) => (
               <div key={l.allocation_id} className="row between small">
                 <span>{litres(l.quantity)} {fuelName(l.fuel_type).toLowerCase()} from {placeName(snap, l.source_depot_id)}</span>
-                <span className="row" style={{ gap: 6 }}><Chip tone="act">{l.status.toLowerCase().replace('_', ' ')}</Chip><span className="mono xsmall faint">arrives t{l.expected_arrival_tick ?? '?'}</span></span>
+                <span className="row" style={{ gap: 6 }}><Chip tone="act">{l.status.toLowerCase().replace('_', ' ')}</Chip><span className="mono xsmall faint">arrives at step {l.expected_arrival_tick ?? '?'}</span></span>
               </div>
             ))}
             {planned.map((l, i) => (
               <div key={`p${i}`} className="row between small">
                 <span>{litres(l.quantity)} {fuelName(l.fuel_type).toLowerCase()} from {placeName(snap, l.source_depot_id)}</span>
-                <a href="#/recommendation" className="xsmall">recommended, awaiting review →</a>
+                <a href="#/decisions" className="xsmall">recommended, awaiting review →</a>
               </div>
             ))}
             {!incoming.length && !planned.length && <p className="empty">Nothing in transit.</p>}
@@ -110,7 +110,7 @@ function DemandChart({ obs }: { obs: Obs[] }) {
   const unmet = obs.filter((o) => o.unmet_liters > 0);
   return (
     <div className="stack" style={{ gap: 6 }}>
-      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: 'auto', display: 'block' }} role="img" aria-label="Demand per tick by fuel">
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: 'auto', display: 'block' }} role="img" aria-label="Demand per step by fuel">
         {[0, 0.5, 1].map((g) => (
           <g key={g}><line x1={pl} x2={W - pr} y1={y(max * g)} y2={y(max * g)} stroke="var(--line-2)" />
             <text x={pl - 6} y={y(max * g) + 3} textAnchor="end" style={{ font: '500 9.5px var(--f-mono)', fill: 'var(--ink-3)' }}>{Math.round(max * g)}</text></g>
@@ -120,12 +120,12 @@ function DemandChart({ obs }: { obs: Obs[] }) {
           const s = series(f);
           return s.length > 1 && <polyline key={f} fill="none" stroke={fuelColor(f)} strokeWidth={1.6} points={s.map((o) => `${x(o.tick)},${y(o.demand_liters)}`).join(' ')} />;
         })}
-        <text x={pl} y={H - 6} style={{ font: '500 9.5px var(--f-mono)', fill: 'var(--ink-3)' }}>t{t0}</text>
-        <text x={W - pr} y={H - 6} textAnchor="end" style={{ font: '500 9.5px var(--f-mono)', fill: 'var(--ink-3)' }}>t{t1}</text>
+        <text x={pl} y={H - 6} style={{ font: '500 9.5px var(--f-mono)', fill: 'var(--ink-3)' }}>step {t0}</text>
+        <text x={W - pr} y={H - 6} textAnchor="end" style={{ font: '500 9.5px var(--f-mono)', fill: 'var(--ink-3)' }}>step {t1}</text>
       </svg>
       <div className="row xsmall muted" style={{ gap: 14 }}>
-        {FUELS.map((f) => <span key={f} className="row" style={{ gap: 5 }}><i style={{ width: 14, height: 2, background: fuelColor(f), display: 'inline-block' }} />{fuelName(f)} L/tick</span>)}
-        <span className="row" style={{ gap: 5 }}><i style={{ width: 8, height: 10, background: 'var(--crit-bg)', display: 'inline-block' }} />ticks with unmet demand</span>
+        {FUELS.map((f) => <span key={f} className="row" style={{ gap: 5 }}><i style={{ width: 14, height: 2, background: fuelColor(f), display: 'inline-block' }} />{fuelName(f)} L per step</span>)}
+        <span className="row" style={{ gap: 5 }}><i style={{ width: 8, height: 10, background: 'var(--crit-bg)', display: 'inline-block' }} />steps with unmet demand</span>
       </div>
     </div>
   );

@@ -9,7 +9,7 @@ function steps(r: DecisionRecord): Step[] {
   const futures = rec ? (rec.futures?.length ? rec.futures : rec.twin_futures ?? []) : [];
   const out = r.outcome as { actual_network_unmet_l?: number; allocation_statuses?: Record<string, string>; complete?: boolean } | null;
   return [
-    { stage: 'Observed', reached: true, say: `Tick ${r.sim_tick}: ${rec?.signals.length ?? 0} signal(s) in the network snapshot.`,
+    { stage: 'Observed', reached: true, say: `Step ${r.sim_tick}: ${rec?.signals.length ?? 0} signal(s) in the network snapshot.`,
       data: { tick: r.sim_tick, signals: rec?.signals.map((s) => s.message) } },
     { stage: 'Predicted', reached: !!rec, say: `${rec?.risks.length ?? 0} station × fuel pair(s) at risk.`,
       data: rec?.risks.slice(0, 4).map((x) => ({ station: x.station_id, fuel: x.fuel_type, hours: x.hours_to_stockout, p: x.p_stockout })) },
