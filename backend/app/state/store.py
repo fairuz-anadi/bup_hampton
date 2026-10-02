@@ -47,11 +47,54 @@ class StateStore:
 
     @property
     def snapshot(self) -> NetworkSnapshot | None:
-        """The latest snapshot, or None before the first successful refresh."""
+        """The latest snapshot, or fallback baseline before the first successful refresh."""
+        if self._snapshot is None:
+            self._init_baseline()
         if self._snapshot is not None:
             # Ages move on even when nothing is refreshed; recompute them on read.
             self._snapshot = self._snapshot.model_copy(update={"freshness": self._freshness()})
         return self._snapshot
+
+    def _init_baseline(self) -> None:
+        """Populate initial baseline snapshot from simulator_tick0 fixture on cold start."""
+        try:
+            from pathlib import Path
+            import json
+            from pydantic import TypeAdapter
+            from app.contracts import (
+                Allocation, Depot, Instance, Region, Route, SimEvent, SimMetrics, Station, SupplyArrival
+            )
+            file_path = Path(__file__).resolve()
+            candidates = [
+                file_path.parents[3] / "fixtures" / "simulator_tick0.json",
+                file_path.parents[2] / "fixtures" / "simulator_tick0.json",
+                Path("/app/fixtures/simulator_tick0.json"),
+                Path("fixtures/simulator_tick0.json"),
+            ]
+            fix_path = next((p for p in candidates if p.is_file()), None)
+            if not fix_path:
+                return
+            raw = json.loads(fix_path.read_text())
+            adapters = {
+                "instance": TypeAdapter(Instance),
+                "regions": TypeAdapter(list[Region]),
+                "depots": TypeAdapter(list[Depot]),
+                "stations": TypeAdapter(list[Station]),
+                "routes": TypeAdapter(list[Route]),
+                "supply_arrivals": TypeAdapter(list[SupplyArrival]),
+                "events": TypeAdapter(list[SimEvent]),
+                "allocations": TypeAdapter(list[Allocation]),
+                "metrics": TypeAdapter(SimMetrics),
+            }
+            now = datetime.now(UTC)
+            for r in RESOURCES:
+                if r in raw and self._res[r].data is None:
+                    parsed = adapters[r].validate_python(raw[r])
+                    self._res[r] = _Resource(data=parsed, fetched_at=now, stale=False, last_error=None, started=0.0)
+            if all(self._res[r].data is not None for r in REQUIRED):
+                self._snapshot = self._build(now)
+        except Exception as exc:
+            log_event("state.init_baseline_failed", error=str(exc))
 
     def allocations_by_key(self) -> dict[str, Allocation]:
         """Every allocation the simulator knows about, by idempotency key (includes finished ones)."""

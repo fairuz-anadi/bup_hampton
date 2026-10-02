@@ -30,7 +30,12 @@ import uvicorn
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
 
-FIXTURE = Path(__file__).resolve().parents[1] / "fixtures" / "simulator_tick0.json"
+_fixture_candidates = [
+    Path(__file__).resolve().parents[1] / "fixtures" / "simulator_tick0.json",
+    Path(__file__).resolve().parents[2] / "fixtures" / "simulator_tick0.json",
+    Path("/app/fixtures/simulator_tick0.json"),
+]
+FIXTURE = next((p for p in _fixture_candidates if p.is_file()), _fixture_candidates[0])
 BASE_RATE = {"urban_high": 55.0, "industrial": 45.0, "highway": 40.0, "regional": 25.0}  # L/tick per fuel
 FUEL_SHARE = {"DIESEL": 1.0, "PETROL": 0.8, "OCTANE": 0.45}
 TICKS_PER_SECOND = 8

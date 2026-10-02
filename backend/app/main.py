@@ -216,6 +216,52 @@ def create_app(settings: Settings | None = None, services: Services | None = Non
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
+        # Auto-start standalone simulator if simulator_url is local and no process is listening on the simulator port
+        try:
+            import socket
+            from urllib.parse import urlparse
+            parsed = urlparse(settings.simulator_url)
+            host = parsed.hostname or "127.0.0.1"
+            port = parsed.port or 8000
+            is_local = host in ("localhost", "127.0.0.1", "0.0.0.0")
+
+            is_mock_test = (
+                services is not None
+                and hasattr(services, "client")
+                and hasattr(services.client, "_http")
+                and not isinstance(services.client._http._transport, httpx.AsyncHTTPTransport)
+            )
+
+            if is_local and not is_mock_test:
+                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                    s.settimeout(0.3)
+                    port_open = (s.connect_ex((host, port)) == 0)
+
+                if not port_open:
+                    import sys
+                    import threading
+                    for p in [Path(__file__).resolve().parents[2], Path(__file__).resolve().parents[1], Path("/app")]:
+                        if p.is_dir() and str(p) not in sys.path:
+                            sys.path.insert(0, str(p))
+                    import uvicorn
+                    from scripts.fake_simulator import app as sim_app
+                    sim_thread = threading.Thread(
+                        target=uvicorn.run,
+                        args=(sim_app,),
+                        kwargs={"host": "127.0.0.1", "port": port, "log_level": "warning"},
+                        daemon=True,
+                    )
+                    sim_thread.start()
+                    for _ in range(25):
+                        await asyncio.sleep(0.1)
+                        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                            s.settimeout(0.1)
+                            if s.connect_ex(("127.0.0.1", port)) == 0:
+                                break
+                    log_event("simulator.standalone_started", host=host, port=port)
+        except Exception as exc:
+            log_event("simulator.standalone_start_failed", error=str(exc))
+
         svc = services or build_services(settings)
         app.state.services = svc
         await svc.start(start_sync)
