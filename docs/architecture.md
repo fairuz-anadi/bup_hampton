@@ -56,6 +56,7 @@ flowchart LR
 | Detection, risk, LP, greedy, Decision Twin | `backend/app/intel/` | Turjo | Greedy policy; no Twin → no futures shown |
 | **Decision engine, confidence gate, autonomy, autopilot** | `backend/app/decisions/engine.py`, `gate.py`, `routes.py` | Samprity | Engine shown as down; nothing is recommended or executed |
 | **Copilot** | `backend/app/explain/` | Samprity | Deterministic template explanation |
+| **RAG Knowledge Base** | `backend/app/rag/`, `rag_data/` | Team | Extractive grounded synthesis; memory + JSONL buffer |
 | **Operator UI** | `frontend/` | Samprity | Last snapshot + "backend unreachable" banner |
 | Metrics, logs, dashboards | `backend/app/obs/`, `monitoring/` | Anadi | — |
 

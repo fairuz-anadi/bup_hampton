@@ -13,6 +13,8 @@ RUN pip install -r requirements.txt -r requirements-intel.txt
 
 COPY backend/app ./app
 COPY forecaster ./forecaster
+COPY fixtures ./fixtures
+COPY rag_data ./rag_data
 # Lets `backend.app.*` imports resolve to the same code as `app.*`.
 RUN ln -s /app /app/backend
 

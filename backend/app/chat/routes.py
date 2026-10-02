@@ -37,7 +37,13 @@ def _check_rate_limit(request: Request) -> None:
 
 
 def _services(request: Request):
-    return request.app.state.services
+    svc = getattr(request.app.state, "services", None)
+    if svc is None:
+        from app.config import get_settings
+        from app.main import build_services
+        request.app.state.services = build_services(get_settings())
+        return request.app.state.services
+    return svc
 
 
 @router.post("", response_model=ChatResponse, summary="Send message to FuelGuard AI Chatbot")

@@ -94,6 +94,10 @@ described in [docs/backend-integration.md](docs/backend-integration.md).
 | POST | `/api/explain` · `/api/copilot/investigate` · `/api/copilot/summary` | Copilot (read-only): explain a decision, ask about a station, summarize |
 | GET | `/api/copilot/incident-report?from_tick=&to_tick=` · `/api/copilot/info` | Incident report from events + decisions; copilot / tracing status |
 | GET | `/api/scoreboard` | Counterfactual scoreboard (projected) + verified Twin error |
+| POST | `/api/rag/ingest` | Ingest or update documents from `rag_data/` into vector store |
+| POST | `/api/rag/search` | Semantic similarity search with category and metadata filtering |
+| POST | `/api/rag/ask` | Grounded question answering citing verified policy and project sources |
+| GET | `/api/rag/stats` | RAG knowledge base statistics and indexed document counts |
 | GET | `/metrics` | Prometheus |
 
 Every POST/PUT needs `X-Operator-Key`. With no key configured, writes are disabled (fail closed).
@@ -170,6 +174,34 @@ python scripts/copilot_eval.py --langsmith   # also upload the dataset and recor
 CI (`.github/workflows/ci.yml`): secret scan (gitleaks) → lint + unit tests → build images tagged with the git SHA →
 deploy the stack with the official simulator → health checks → check the deployed version → end-to-end smoke test
 (including a database outage) → short load test, with results uploaded as an artifact.
+
+## Retrieval-Augmented Generation (RAG) & Knowledge Base
+
+FuelGuard incorporates a specialized RAG engine that provides verifiable domain policies, simulator specifications, and historical reports to operators, decision engines, and conversational copilots.
+
+### Knowledge Base Organization (`rag_data/`)
+- `project_documents/`: System architecture, simulator documentation, database schemas, API specs, and RL design.
+- `rules_policies/`: Fuel allocation rules, 10% minimum depot reserves, safety constraints, transportation latency rules, and decision approval governance.
+- `historical_reports/`: Ground-truth simulation benchmarks (e.g. no-op 30.7%, 3-day calm 100%, 6-day 92.3%), allocation audit history, demand patterns from `fixtures/demand_history.json`, and RL evaluation benchmarks.
+- `external_data/`: Verified data sources catalog, Bangladesh downstream petroleum context (BPC/ERL/OMCs), regional transport geography, and Department of Explosives handling safety standards.
+
+### Self-Documenting Maintenance & Automated Re-ingestion
+1. **Regenerate from Codebase:** Run `python scripts/generate_rag_docs.py` to re-extract live configurations and schemas into `rag_data/`. Files with `manual_edit: true` frontmatter are safeguarded from being overwritten.
+2. **Trigger Vector Ingestion:**
+   ```bash
+   curl -X POST http://localhost:8080/api/rag/ingest -H "Content-Type: application/json" -d '{"force": false}'
+   ```
+3. **Query the Knowledge Base:**
+   ```bash
+   curl -X POST http://localhost:8080/api/rag/search -H "Content-Type: application/json" \
+     -d '{"query": "What policy applies to minimum depot reserve?", "category": "rules_policies", "top_k": 3}'
+   ```
+
+### Storage & Resilience
+- Primary storage in PostgreSQL (`rag_documents` and `rag_chunks` tables) with pgvector or array cosine distance.
+- High-performance in-memory cache for zero-latency retrieval during operational decision cycles.
+- Persistent JSONL disk journal (`/tmp/fuelguard-rag-store.jsonl`) guarantees knowledge survives restarts even if the database is temporarily offline.
+- Deterministic in-process dense feature hashing fallback ensures semantic search and tests run completely offline without requiring external API keys.
 
 ## Deployment
 
