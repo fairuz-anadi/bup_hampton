@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: fuelguard
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    plan: free
+    region: singapore
+    envVars:
+      - key: PORT
+        value: "8080"
+      - key: OPERATOR_KEY
+        value: dev-operator-key
+      - key: AUTOPILOT
+        value: "true"
+      - key: SIMULATOR_URL
+        value: http://localhost:8000
+      - key: DECISION_LOOP_ENABLED
+        value: "true"
+      - key: DEFAULT_POLICY
+        value: greedy-v1

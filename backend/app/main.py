@@ -8,8 +8,13 @@ from collections.abc import Awaitable, Callable
 from contextlib import asynccontextmanager, suppress
 from dataclasses import dataclass, field
 
+from pathlib import Path
+
 import httpx
-from fastapi import FastAPI, Request, Response
+from fastapi import FastAPI, HTTPException, Request, Response
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
 from app.api.auth import auth_router
@@ -223,6 +228,14 @@ def create_app(settings: Settings | None = None, services: Services | None = Non
     app = FastAPI(title="FuelGuard backend", version=settings.deployment_version, lifespan=lifespan,
                   description="Decision-support backend for the BUP Fuel Supply Simulator. SIMULATED data only.")
 
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
     @app.middleware("http")
     async def http_metrics(request: Request, call_next):
         started = time.perf_counter()
@@ -237,11 +250,6 @@ def create_app(settings: Settings | None = None, services: Services | None = Non
     def metrics() -> Response:
         return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
-    @app.get("/", include_in_schema=False)
-    def root() -> dict:
-        return {"service": "fuelguard-backend", "version": settings.deployment_version, "docs": "/docs",
-                "note": "SIMULATED environment. No real fuel infrastructure is accessed."}
-
     app.include_router(router)
     app.include_router(auth_router)
     app.include_router(control_router)
@@ -250,6 +258,32 @@ def create_app(settings: Settings | None = None, services: Services | None = Non
     app.include_router(chat_router)
     app.include_router(rag_router)
     app.include_router(rl_router)
+
+    # Check for built frontend dist (production deployment)
+    static_dirs = [
+        Path("/app/frontend/dist"),
+        Path(__file__).resolve().parents[2] / "frontend" / "dist",
+    ]
+    frontend_dir = next((d for d in static_dirs if d.is_dir()), None)
+    if frontend_dir:
+        assets_dir = frontend_dir / "assets"
+        if assets_dir.is_dir():
+            app.mount("/assets", StaticFiles(directory=str(assets_dir)), name="assets")
+
+        @app.get("/{full_path:path}", include_in_schema=False)
+        async def serve_spa(full_path: str):
+            if full_path.startswith("api/") or full_path in ("metrics", "docs", "openapi.json"):
+                raise HTTPException(status_code=404, detail="Not Found")
+            file_target = frontend_dir / full_path
+            if file_target.is_file():
+                return FileResponse(file_target)
+            return FileResponse(frontend_dir / "index.html")
+    else:
+        @app.get("/", include_in_schema=False)
+        def root() -> dict:
+            return {"service": "fuelguard-backend", "version": settings.deployment_version, "docs": "/docs",
+                    "note": "SIMULATED environment. No real fuel infrastructure is accessed."}
+
     return app
 
 
