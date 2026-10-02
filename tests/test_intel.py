@@ -110,14 +110,14 @@ def test_decision_twin_counterfactual_futures(sample_snapshot):
     intel = IntelligenceService()
     rec = intel.evaluate_and_recommend(sample_snapshot)
 
-    assert len(rec.twin_futures) == 3
-    noop = rec.twin_futures[0]
-    greedy = rec.twin_futures[1]
-    lp = rec.twin_futures[2]
-
-    assert noop.candidate_id == "noop"
-    assert greedy.candidate_id == "greedy-v1"
-    assert lp.candidate_id == "lp-v2"
+    assert len(rec.twin_futures) >= 3
+    cand_ids = [f.candidate_id for f in rec.twin_futures]
+    assert "noop" in cand_ids
+    assert "greedy-v1" in cand_ids
+    assert "lp-v2" in cand_ids
+    assert "rl-ppo" in cand_ids
+    noop = next(f for f in rec.twin_futures if f.candidate_id == "noop")
+    lp = next(f for f in rec.twin_futures if f.candidate_id == "lp-v2")
     # LP should result in equal or lower unmet demand than No-Op
     assert lp.network_unmet_liters <= noop.network_unmet_liters
     assert rec.projected_unmet_avoided >= 0.0

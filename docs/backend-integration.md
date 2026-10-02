@@ -72,6 +72,56 @@ itself. Pending decisions expire after 8 ticks.
 - **Fallback metric:** `from app.obs.metrics import FALLBACKS; FALLBACKS.labels("forecaster").inc()` whenever a
   fallback activates, plus `log_event("fallback.activated", component="forecaster")`.
 
+## RAG Knowledge Subsystem Integration
+
+The RAG pipeline provides grounded domain rules and policies to the intelligence service, decision explanations, copilot, and operator UI.
+
+### API Endpoints
+| Endpoint | Method | Payload / Description |
+|---|---|---|
+| `/api/rag/search` | POST | `{"query": str, "category": str?, "top_k": int}` · Returns ranked semantic + BM25 chunks. |
+| `/api/rag/ask` | POST | `{"query": str, "category": str?, "top_k": int}` · Returns grounded answer with cited document sources. |
+| `/api/rag/ingest` | POST | `{"data_dir": str?, "force": bool}` · Scans documents, hashes SHA-256, chunks, embeds, persists. |
+| `/api/rag/stats` | GET | Knowledge store statistics, document counts per category, and health status. |
+
+### Adding Knowledge Documents
+Add markdown, text, JSON, PDF, or DOCX documents to `rag_data/` under appropriate subdirectories:
+- `rag_data/rules_policies/`: Regulatory constraints, reserve mandates, ullage rules.
+- `rag_data/project_documents/`: Architecture specifications, schemas, API contracts.
+- `rag_data/historical_reports/`: Crisis benchmarks, demand profiles, and simulation audits.
+- `rag_data/external_data/`: Bangladesh geographic context and petroleum distribution standards.
+
+Optional YAML frontmatter:
+```yaml
+---
+document_id: rules_policies/custom_rule.md
+title: Special Tank Safety Standard
+category: rules_policies
+manual_edit: true
+---
+```
+
+## Reinforcement Learning (RL) Integration
+
+The RL agent learns dispatch decisions using Proximal Policy Optimization (PPO) over the gymnasium `FuelSupplyEnv`.
+
+### API Endpoints
+| Endpoint | Method | Description |
+|---|---|---|
+| `/api/rl/recommend` | POST | `{"snapshot": NetworkSnapshot?}` · Generates validated dispatch recommendation or fallback status. |
+| `/api/rl/stats` | GET | Returns active model name, version, observation/action dimensions, and health status. |
+
+### Guardrails & Safety Isolation
+The RL agent **never** bypasses safety checks or directly moves fuel:
+1. `validate_action()` validates depot 10% reserve floor, route availability, dispatch capacity, and station tank headroom.
+2. If invalid, the action is rejected and does not reach the allocation writer.
+3. If RL is unhealthy, stale, or fails, the system automatically falls back to `lp-v2` or `greedy-v1`.
+
+### Training & Retraining
+- Retrain agent: `python backend/app/rl/training/train.py --timesteps 50000 --save-path backend/app/rl/models/fuel_ppo_v1.pt`
+- Evaluate policy: `python backend/app/rl/training/evaluate.py --episodes 20`
+- Model checkpoints and metadata are stored in `backend/app/rl/models/` and `rl/models/`.
+
 ## Chaos Lab and demo controls (all need `X-Operator-Key`)
 
 | Endpoint | Body |

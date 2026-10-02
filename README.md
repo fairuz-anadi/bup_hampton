@@ -98,6 +98,8 @@ described in [docs/backend-integration.md](docs/backend-integration.md).
 | POST | `/api/rag/search` | Semantic similarity search with category and metadata filtering |
 | POST | `/api/rag/ask` | Grounded question answering citing verified policy and project sources |
 | GET | `/api/rag/stats` | RAG knowledge base statistics and indexed document counts |
+| POST | `/api/rl/recommend` | Generate a safe RL dispatch recommendation from current state |
+| GET | `/api/rl/stats` | RL model metadata, observation/action specs, and health status |
 | GET | `/metrics` | Prometheus |
 
 Every POST/PUT needs `X-Operator-Key`. With no key configured, writes are disabled (fail closed).
@@ -202,6 +204,53 @@ FuelGuard incorporates a specialized RAG engine that provides verifiable domain 
 - High-performance in-memory cache for zero-latency retrieval during operational decision cycles.
 - Persistent JSONL disk journal (`/tmp/fuelguard-rag-store.jsonl`) guarantees knowledge survives restarts even if the database is temporarily offline.
 - Deterministic in-process dense feature hashing fallback ensures semantic search and tests run completely offline without requiring external API keys.
+
+## Reinforcement Learning (RL) Decision Subsystem
+
+FuelGuard integrates deep Reinforcement Learning to learn fuel allocation and dispatch policies directly from the dynamic simulator environment.
+
+### Gymnasium Environment (`FuelSupplyEnv`)
+- **State Space (`dim=58`)**: Vectorizes `NetworkSnapshot` into continuous normalized features:
+  - Depot inventories across all fuels (Diesel, Petrol, Octane) and dispatch capacities.
+  - Station inventories, capacities, and short-term rolling demands.
+  - LightGBM demand forecasts for the upcoming 4 ticks.
+  - Route statuses (`AVAILABLE` vs `DISRUPTED`) and transit latencies.
+  - Current in-transit fuel quantities headed to each station.
+  - Active disruption flags and cyclical time features ($\sin, \cos$ of day).
+- **Action Space**: Discrete combination space (25 actions) mapping to `(source_depot, destination_station, fuel_type, quantity)`.
+- **Multi-Objective Reward Formulation**:
+  $$R_t = w_{\text{served}} \cdot \text{ServedLiters} - w_{\text{unmet}} \cdot \text{UnmetLiters} - w_{\text{cost}} \cdot \text{Cost} - w_{\text{res}} \cdot \mathbb{I}_{\text{reserve\_violation}} - w_{\text{inv}} \cdot \mathbb{I}_{\text{invalid\_action}}$$
+  Configurable via `backend/app/rl/training/config.yaml`:
+  - `w_served: 2.0` (incentivizes high service level)
+  - `w_unmet: 5.0` (penalizes stockouts heavily)
+  - `w_cost: 0.05` (optimizes logistics efficiency)
+  - `w_reserve: 10.0` (enforces Bangladesh 10% depot reserve mandate)
+  - `w_invalid: 20.0` (strongly deters proposing illegal actions)
+
+### Safety-First Architecture & Guardrails
+- **The RL agent is strictly a candidate generator**: It **never** executes dispatches autonomously to the simulator.
+- **Deterministic Action Validation**: Every proposed action is checked before reaching the decision engine or operator UI:
+  1. Source depot inventory $\ge 10\%$ reserve floor after dispatch.
+  2. Route status is `AVAILABLE` (no active disruptions).
+  3. Dispatch quantity $\le$ depot's remaining per-tick capacity.
+  4. Quantity $\le$ station tank headroom minus existing in-transit shipments.
+  5. Quantity $> 0$.
+- **Automated Fallback**: If an RL action violates any guardrail, is uncertain (confidence $< 0.80$), or the model is unavailable, FuelGuard automatically falls back to the Linear Programming optimizer (`lp-v2`) or Greedy baseline (`greedy-v1`).
+
+### Training, Evaluation, and Notebooks
+- **Standalone Training:** `python backend/app/rl/training/train.py --timesteps 50000 --save-path backend/app/rl/models/fuel_ppo_v1.pt`
+- **Benchmark Evaluation:** `python backend/app/rl/training/evaluate.py --episodes 20`
+- **Interactive Walkthrough Notebook:** Explore training dynamics, policy gradients, and state embeddings in `rl/notebooks/fuel_supply_rl_walkthrough.ipynb`.
+- **Sample Scenarios:** Evaluated against crisis datasets in `rl/datasets/sample_scenarios.json`.
+
+### Operator UI: RL & RAG Intelligence Center (`#/intelligence`)
+The frontend provides a dedicated mission-control screen:
+- Live RL recommendation display with source, destination, fuel type, litres, and route.
+- Confidence score and real-time PyTorch inference latency.
+- Deterministic guardrail check indicators (Pass/Fail).
+- Applicable operational policies retrieved via RAG with citation links.
+- Interactive operator review controls (**Approve Recommendation** / **Reject Recommendation with Reason**) that clearly distinguish AI recommendations from certified operational decisions.
+- Interactive RAG Knowledge Assistant for natural language querying of project rules.
 
 ## Deployment
 

@@ -17,11 +17,13 @@ flowchart LR
     direction TB
     CLIENT["Simulator client<br/>timeouts · retries · circuit breaker<br/>validation · stale detection"]
     STATE["State store<br/>NetworkSnapshot · in-transit ledger"]
-    INTEL["Intelligence<br/>detect → forecast → risk → LP / greedy → Decision Twin"]
+    INTEL["Intelligence<br/>detect → forecast → risk → LP / greedy / RL-PPO → Decision Twin"]
+    RL["RL Decision Agent (PPO)<br/>Gymnasium FuelSupplyEnv · 58 state dims<br/>multi-objective reward · action validation"]
+    RAG["RAG Knowledge Engine<br/>dense + lexical hybrid retrieval<br/>policy citation & grounded synthesis"]
     ENGINE["Decision engine (every tick)<br/>policy switch · confidence · autonomy mode · gate"]
     DEC["Decision service<br/>records · approve / reject · outcome + Twin check"]
     WRITER["Allocation writer<br/>pre-checks · idempotency keys"]
-    EXPLAIN["Copilot (read-only)<br/>templates + LangGraph · faithfulness check"]
+    EXPLAIN["Copilot (read-only)<br/>templates + LangGraph · faithfulness check · RAG citations"]
     OPS["Chaos Lab proxy · pacer · policy switch"]
     DB[("Postgres<br/>buffered when down")]
   end
@@ -32,12 +34,15 @@ flowchart LR
   LLM["LLM + LangSmith<br/>(optional)"]
 
   SIM -- "REST (truth) · SSE (hint)" --> CLIENT --> STATE --> INTEL
+  STATE --> RL -. "candidate rec" .-> INTEL
   FC -. "POST /forecast (fallback in-process)" .-> INTEL
   INTEL -- Recommendation --> ENGINE -- "create(rec, gate, mode)" --> DEC
   DEC -- "approved legs" --> WRITER -- "POST /v1/allocations" --> SIM
   DEC --- DB
   DEC -- "verified Twin error" --> ENGINE
   ENGINE -. "autopilot (Autonomous only)" .-> DEC
+  RAG -. "grounded policies" .-> EXPLAIN
+  RAG -. "rules context" .-> UI
   EXPLAIN -.-> LLM
   OPS -- "/admin/*" --> SIM
   UI -- "/api/* · poll 2 s" --> BE
@@ -54,9 +59,10 @@ flowchart LR
 | Decision service, Postgres repo, outcome + Twin check | `backend/app/decisions/service.py`, `backend/app/db/` | Anadi | Records buffer in memory + JSONL |
 | Forecaster | `forecaster/` | Turjo | In-process profile predictor; confidence drops |
 | Detection, risk, LP, greedy, Decision Twin | `backend/app/intel/` | Turjo | Greedy policy; no Twin → no futures shown |
+| **RL Decision Agent (PPO)** | `backend/app/rl/`, `rl/` | Turjo | Fallback to LP optimizer (`lp-v2`) or Greedy (`greedy-v1`) |
 | **Decision engine, confidence gate, autonomy, autopilot** | `backend/app/decisions/engine.py`, `gate.py`, `routes.py` | Samprity | Engine shown as down; nothing is recommended or executed |
 | **Copilot** | `backend/app/explain/` | Samprity | Deterministic template explanation |
-| **RAG Knowledge Base** | `backend/app/rag/`, `rag_data/` | Team | Extractive grounded synthesis; memory + JSONL buffer |
+| **RAG Knowledge Base** | `backend/app/rag/`, `rag_data/` | Turjo | Extractive grounded synthesis; memory + JSONL buffer |
 | **Operator UI** | `frontend/` | Samprity | Last snapshot + "backend unreachable" banner |
 | Metrics, logs, dashboards | `backend/app/obs/`, `monitoring/` | Anadi | — |
 
@@ -114,6 +120,53 @@ All pages share one 2-second poll of cached backend state (the UI never calls th
 - **Architecture**: this pipeline as a diagram, and what happens when each part fails.
 - Drill-downs: a station (stock, routes, demand chart, ask the copilot), network details, and decision history with
   a stage-by-stage replay.
+
+## Retrieval-Augmented Generation (RAG) Subsystem Architecture
+
+The RAG subsystem (`backend/app/rag/`) bridges operational execution with domain governance, safety rules, and historical evidence.
+
+```mermaid
+flowchart TD
+  RAW["Domain Documents<br/>MD, TXT, JSON, PDF, DOCX"] --> LOAD["DocumentLoaders<br/>frontmatter + SHA-256 hash"]
+  LOAD --> CHUNK["SemanticHeaderChunker<br/>500-800 tokens, 50-100 overlap"]
+  CHUNK --> EMBED["DenseEmbeddingProvider<br/>OpenAI text-embedding-3-small<br/>(offline feature hashing fallback)"]
+  EMBED --> STORE[("Knowledge Store<br/>PostgreSQL vector/array + JSONL journal")]
+  
+  QUERY["Operator / Decision Query"] --> RET["HybridRetriever<br/>70% Dense Cosine + 30% Lexical BM25"]
+  STORE --> RET
+  FILT["MetadataFilter<br/>category, document_id, section"] --> RET
+  RET --> RERANK["ResultReranker<br/>policy boosts + exact phrase bonus"]
+  RERANK --> SYNTH["Grounded Synthesis<br/>strict context citation + extractive fallback"]
+  SYNTH --> OUT["Verifiable Citations & Answers"]
+```
+
+- **Data Ingestion (`backend/app/rag/ingestion/`)**: Multi-format loader with change detection via SHA-256 checksums, semantic section chunking, and dense embedding.
+- **Hybrid Retrieval (`backend/app/rag/retrieval/`)**: Combines cosine similarity over dense vector spaces with lexical keyword matching, filtered by metadata and reranked using domain-specific policy boosts.
+- **Storage & Resiliency**: Dual-mode persistence in PostgreSQL (with vector/float array indexing) and transactional disk journaling (`/tmp/fuelguard-rag-store.jsonl`) for zero-dependency offline failover.
+
+## Reinforcement Learning (RL) Decision Subsystem Architecture
+
+FuelGuard's RL subsystem (`backend/app/rl/`) applies Deep Reinforcement Learning to learn complex multi-depot, multi-station dispatch policies while guaranteeing safety boundaries.
+
+```mermaid
+flowchart TD
+  SNAP["Live NetworkSnapshot<br/>depots, stations, routes, arrivals"] --> VEC["StateVectorizer<br/>58 continuous normalized features"]
+  VEC --> PPO["ActorCriticNetwork (PPO)<br/>LayerNorm MLP 256x256<br/>Actor: 25 discrete actions · Critic: value"]
+  PPO --> ACT["RLActionSpace<br/>discrete index -> dispatch leg tuple"]
+  
+  ACT --> GUARD{"Deterministic Guardrails<br/>10% depot reserve floor?<br/>Route status AVAILABLE?<br/>Depot capacity respected?<br/>Station ullage headroom ok?"}
+  GUARD -- "Pass" --> CAND["Candidate Recommendation<br/>status: pending_human_review"]
+  GUARD -- "Fail / Invalid" --> FB["Fallback Path<br/>Linear Programming (lp-v2)<br/>or Greedy baseline (greedy-v1)"]
+  
+  CAND --> TWIN["Decision Twin<br/>counterfactual forward simulation"]
+  TWIN --> GATE["Confidence Gate & Autonomy<br/>mode checks & human review"]
+  GATE --> REVIEW["Operator UI Review Screen<br/>Approve / Reject"]
+```
+
+- **Environment (`FuelSupplyEnv`)**: Gymnasium wrapper over network snapshots supporting multi-objective reward formulation:
+  $$R_t = 2.0 \cdot \text{ServedLiters} - 5.0 \cdot \text{UnmetLiters} - 0.05 \cdot \text{TransportCost} - 10.0 \cdot \mathbb{I}_{\text{reserve\_viol}} - 20.0 \cdot \mathbb{I}_{\text{invalid\_action}}$$
+- **Safety Guarantee**: The RL agent is strictly isolated from directly dispatching fuel. Proposed actions pass deterministic guardrails (`validate_action`), generate candidates for the Decision Twin, and require operator approval or confidence gate verification.
+- **Automated Fallback**: Any safety violation, model degradation, or stale state locks out autonomous RL and transparently redirects to LP (`lp-v2`) or Greedy (`greedy-v1`).
 
 Failure states are explicit: a sticky "Simulated environment" strip on every screen; red banner when the backend is
 unreachable (last snapshot with its age, approvals paused) or data is stale (recommend only); amber when the simulator

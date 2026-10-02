@@ -81,4 +81,4 @@ def test_decision_record_audit_generation(sample_rec_and_snapshot):
     assert record.mode == AutonomyMode.SUPERVISED
     assert record.approval["by"] == "turjo"
     assert "candidates" in record.model_dump()
-    assert len(record.candidates) == 3
+    assert len(record.candidates) >= 3

@@ -1,0 +1,41 @@
+# FuelGuard Reinforcement Learning Configuration
+
+environment:
+  mode: "simulation"
+  max_ticks_per_episode: 96
+  sim_url: "http://localhost:8000"
+
+agent:
+  algorithm: "PPO"
+  name: "fuel_ppo"
+  version: "v1"
+  learning_rate: 0.0003
+  gamma: 0.99
+  gae_lambda: 0.95
+  clip_range: 0.2
+  ent_coef: 0.01
+  vf_coef: 0.5
+  max_grad_norm: 0.5
+  hidden_dim: 128
+  rollout_steps: 128
+  batch_size: 32
+  update_epochs: 4
+
+reward_weights:
+  demand_satisfaction_weight: 2.0
+  stockout_penalty_weight: 3.0
+  transport_cost_weight: 0.002
+  reserve_violation_penalty: 5.0
+  capacity_violation_penalty: 2.0
+  invalid_action_penalty: 2.5
+  healthy_inventory_bonus: 0.5
+  stable_supply_bonus: 0.3
+
+training:
+  total_timesteps: 3000
+  eval_frequency: 1000
+
+paths:
+  model_dir: "backend/app/rl/models"
+  export_dir: "rl/models"
+  checkpoint_name: "fuel_ppo_v1.pt"

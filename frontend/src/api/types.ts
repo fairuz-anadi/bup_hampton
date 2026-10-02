@@ -110,3 +110,74 @@ export interface HealthReport {
   version?: string; active_policy?: string | null; pacer_running?: boolean;
 }
 export interface ExplainResponse { text: string; cited_facts: string[]; source: 'llm' | 'template'; confidence: number; llm_model: string }
+
+export interface RLRecommendation {
+  source_depot: string;
+  destination_station: string;
+  fuel_type: Fuel;
+  quantity: number;
+  route: string;
+}
+
+export interface RLRecommendResponse {
+  recommendation: RLRecommendation | null;
+  model: { name: string; version: string };
+  confidence: number;
+  status: 'pending_human_review' | 'rejected_by_guardrails' | string;
+  reason?: string;
+  latency_ms: number;
+}
+
+export interface RLStatsResponse {
+  model_name: string;
+  model_version: string;
+  loaded: boolean;
+  status: 'healthy' | 'degraded' | 'down';
+  detail: string;
+  observation_dim: number;
+  model_path: string;
+}
+
+export interface RAGSourceCitation {
+  source: string;
+  document_id: string;
+  section: string | null;
+  page: number | null;
+  category: string;
+  score: number;
+}
+
+export interface RAGSearchResult {
+  chunk_id: string;
+  document_id: string;
+  source: string;
+  category: string;
+  section: string | null;
+  content: string;
+  score: number;
+  dense_score?: number;
+  sparse_score?: number;
+}
+
+export interface RAGSearchResponse {
+  results: RAGSearchResult[];
+}
+
+export interface RAGAskResponse {
+  answer: string;
+  sources: RAGSourceCitation[];
+  results: RAGSearchResult[];
+  mode?: 'llm' | 'extractive';
+}
+
+export interface RAGStatsResponse {
+  status: 'healthy' | 'degraded' | 'down';
+  detail: string;
+  counts: {
+    total_documents: number;
+    total_chunks: number;
+    categories: Record<string, number>;
+  };
+  data_dir: string;
+  offline_mode: boolean;
+}

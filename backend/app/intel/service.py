@@ -48,6 +48,8 @@ class IntelligenceService:
         self.twin = DecisionTwin(horizon_ticks=horizon_ticks)
         self.multiagent = MultiAgentDecisionSystem()
         self._forecaster_offline_until = 0.0
+        from app.rl.inference.predictor import get_rl_predictor
+        self.rl_predictor = get_rl_predictor()
 
     def _get_forecast(
         self,
@@ -162,19 +164,49 @@ class IntelligenceService:
         # 3. Risk Engine
         risks = self.risk_engine.evaluate_risks(snapshot, forecasts, self.horizon_ticks)
 
-        # 4. Solvers: LP Optimizer + Greedy Baseline
+        # 4. Solvers: LP Optimizer + Greedy Baseline + RL PPO Policy
         lp_legs, lp_fallback, policy_name = self.lp_optimizer.optimize_allocations(
             snapshot, risks, containment_mode=containment_warranted
         )
         greedy_legs = self.greedy_policy.plan_allocations(snapshot, risks)
 
-        # 5. Decision Twin 3-Futures Projection
+        # 4.5. RL Policy Candidate (PPO Agent)
+        fallback_used: list[str] = []
+        rl_legs: list[AllocationLeg] = []
+        rl_candidate_available = False
+        try:
+            rl_out = self.rl_predictor.predict_recommendation(snapshot, forecasts)
+            if rl_out.get("is_valid"):
+                alloc = rl_out.get("allocation_leg")
+                if alloc is not None:
+                    rl_legs = [alloc]
+                rl_candidate_available = True
+            else:
+                fallback_used.append("rl_policy")
+                FALLBACKS.labels(component="rl_policy").inc()
+                log_event("fallback.activated", component="rl_policy", reason=rl_out.get("rejection_reason"))
+        except Exception as exc:
+            fallback_used.append("rl_policy")
+            FALLBACKS.labels(component="rl_policy").inc()
+            log_event("fallback.activated", component="rl_policy", error=str(exc)[:150])
+
+        # 5. Decision Twin 3-Futures Projection (+ RL Future)
         twin_futures = self.twin.project_three_futures(
             snapshot=snapshot,
             forecasts=forecasts,
             greedy_legs=greedy_legs,
             lp_legs=lp_legs,
         )
+
+        if rl_candidate_available:
+            f_rl = self.twin.project_candidate_future(
+                candidate_id="rl-ppo",
+                name="RL-PPO Trained Agent",
+                legs=rl_legs,
+                snapshot=snapshot,
+                forecasts=forecasts,
+            )
+            twin_futures.append(f_rl)
 
         f_noop = twin_futures[0]
         f_greedy = twin_futures[1]
@@ -185,7 +217,6 @@ class IntelligenceService:
         unmet_avoided = max(0.0, before_unmet - after_unmet)
 
         # 6. Fallback logging & Prometheus metrics
-        fallback_used: list[str] = []
         if lp_fallback:
             fallback_used.append("optimizer")
             FALLBACKS.labels(component="optimizer").inc()
@@ -229,13 +260,21 @@ class IntelligenceService:
             f"Greedy-v1 Baseline Future: {f_greedy.network_unmet_liters:.1f} L projected unmet demand.",
         ]
 
-        # Structure 3 Candidate options: noop, greedy-v1, lp-v2
+        # Structure Candidate options: noop, greedy-v1, lp-v2, and rl-ppo
         candidates = [
             Candidate(id="noop", policy="noop", legs=[]),
             Candidate(id="greedy-v1", policy="greedy-v1", legs=greedy_legs),
             Candidate(id="lp-v2", policy="lp-v2", legs=lp_legs),
         ]
-        selected_candidate_id = "lp-v2" if not lp_fallback else "greedy-v1"
+        if rl_candidate_available:
+            candidates.append(Candidate(id="rl-ppo", policy="rl-ppo", legs=rl_legs))
+
+        active_override = os.getenv("DEFAULT_POLICY", "").lower()
+        if active_override == "rl-ppo" and rl_candidate_available:
+            selected_candidate_id = "rl-ppo"
+            policy_name = "rl-ppo"
+        else:
+            selected_candidate_id = "lp-v2" if not lp_fallback else "greedy-v1"
 
         # Multi-Agent Decision System (OpenAI Executive + HF Critic + Specialists)
         multiagent_decision = None

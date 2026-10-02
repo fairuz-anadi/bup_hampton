@@ -99,6 +99,16 @@ def node_extract_facts(state: CopilotState) -> dict:
         if mad.critic_review:
             facts.append(f"Adversarial Critic Review: {mad.critic_review}")
 
+    # 6. RAG Grounded Policy Citations
+    try:
+        from app.rag.pipeline import get_rag_pipeline
+        rag = get_rag_pipeline()
+        rag_hits = rag.search(query=f"rules policies {rec.policy} depot reserve", category="rules_policies", top_k=1)
+        if rag_hits:
+            facts.append(f"Policy Source ({rag_hits[0].source}): {rag_hits[0].content[:140].strip()}...")
+    except Exception:
+        pass
+
     return {"facts": facts}
 
 

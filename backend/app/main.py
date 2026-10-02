@@ -16,6 +16,7 @@ from app.api.auth import auth_router
 from app.api.control_routes import router as control_router
 from app.api.gauntlet_routes import router as gauntlet_router
 from app.api.rag_routes import router as rag_router
+from app.api.rl_routes import router as rl_router
 from app.api.routes import router
 from app.chat import ChatRepo, ChatService, chat_router
 from app.config import Settings, get_settings
@@ -54,6 +55,7 @@ class Services:
     chat_repo: ChatRepo | None = None
     chat: ChatService | None = None
     rag: Any | None = None
+    rl: Any | None = None
     # Result of the background /v1/health probe: {"alive", "checked_at", "latency_ms", "pending_since"}
     sim_probe: dict = field(default_factory=dict)
     demand_cache: dict = field(default_factory=dict)
@@ -191,7 +193,14 @@ def build_services(settings: Settings, transport=None) -> Services:
     async def rag_health() -> ComponentHealth:
         return svc.rag.health()
 
-    svc.health_probes += [decision_engine, explanation, chat_health, rag_health]
+    from app.rl.inference.predictor import get_rl_predictor
+    rl_pred = get_rl_predictor()
+    svc.rl = rl_pred
+
+    async def rl_health() -> ComponentHealth:
+        return svc.rl.health()
+
+    svc.health_probes += [decision_engine, explanation, chat_health, rag_health, rl_health]
     return svc
 
 
@@ -240,6 +249,7 @@ def create_app(settings: Settings | None = None, services: Services | None = Non
     app.include_router(gauntlet_router)
     app.include_router(chat_router)
     app.include_router(rag_router)
+    app.include_router(rl_router)
     return app
 
 

@@ -1,4 +1,4 @@
-import type { AllocationLeg, CurrentView, DecisionRecord, ExplainResponse, HealthReport, NetworkSnapshot, Autonomy } from './types';
+import type { AllocationLeg, CurrentView, DecisionRecord, ExplainResponse, HealthReport, NetworkSnapshot, Autonomy, RLRecommendResponse, RLStatsResponse, RAGSearchResponse, RAGAskResponse, RAGStatsResponse } from './types';
 
 export class ApiError extends Error {
   constructor(public status: number, public code: string, message: string) { super(message); }
@@ -104,4 +104,18 @@ export const api = {
       return false;
     }
   },
+  rlRecommend: (snapshot?: NetworkSnapshot) =>
+    call<RLRecommendResponse>('/api/rl/recommend', { method: 'POST', body: JSON.stringify(snapshot ? { snapshot } : {}) }, 15000),
+  rlStats: () => call<RLStatsResponse>('/api/rl/stats'),
+  ragSearch: (query: string, top_k = 5, category?: string) =>
+    call<RAGSearchResponse>('/api/rag/search', {
+      method: 'POST',
+      body: JSON.stringify({ query, top_k, category }),
+    }),
+  ragAsk: (query: string, top_k = 5, category?: string) =>
+    call<RAGAskResponse>('/api/rag/ask', {
+      method: 'POST',
+      body: JSON.stringify({ query, top_k, category }),
+    }),
+  ragStats: () => call<RAGStatsResponse>('/api/rag/stats'),
 };

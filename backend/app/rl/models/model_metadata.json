@@ -1,0 +1,7 @@
+{
+  "name": "fuel_ppo",
+  "version": "v1",
+  "input_dim": 79,
+  "num_actions": 49,
+  "file": "fuel_ppo_v1.pt"
+}

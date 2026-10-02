@@ -44,9 +44,10 @@ class RAGPipeline:
         dsn: str | None = None,
         data_dir: str | Path | None = None,
         api_key: str | None = None,
+        store: RAGStore | None = None,
     ):
         self.data_dir = Path(data_dir or os.getenv("RAG_DATA_DIR", DEFAULT_DATA_DIR))
-        self.store = RAGStore(dsn=dsn)
+        self.store = store or RAGStore(dsn=dsn)
         self.embedder = EmbeddingGenerator(api_key=api_key)
         self.chunker = TextChunker()
         self.ingestion = IngestionEngine(store=self.store, chunker=self.chunker, embedder=self.embedder)

@@ -13,18 +13,20 @@ import { Architecture } from './screens/Architecture';
 import { NetworkScreen } from './screens/NetworkScreen';
 import { StationScreen } from './screens/StationScreen';
 import { HistoryScreen } from './screens/HistoryScreen';
+import { RLIntelligenceScreen } from './screens/RLIntelligenceScreen';
 import { Chatbot } from './components/Chatbot/Chatbot';
 
 const svg = (d: ReactNode) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">{d}</svg>;
 const I = {
   overview: svg(<><rect x="3" y="3" width="7.5" height="7.5" rx="2" /><rect x="13.5" y="3" width="7.5" height="7.5" rx="2" /><rect x="3" y="13.5" width="7.5" height="7.5" rx="2" /><rect x="13.5" y="13.5" width="7.5" height="7.5" rx="2" /></>),
   decision: svg(<><path d="M12 3l1.9 4.6L18.5 9l-4.6 1.9L12 15.5l-1.9-4.6L5.5 9l4.6-1.4z" /><path d="M18 15l.9 2.1L21 18l-2.1.9L18 21l-.9-2.1L15 18l2.1-.9z" /></>),
+  intelligence: svg(<><path d="M12 2a5 5 0 0 1 5 5c0 2.2-1.4 4.1-3.4 4.8l-.6.2v2h2a3 3 0 0 1 3 3v2h1a2 2 0 0 1 2 2v1h-20v-1a2 2 0 0 1 2-2h1v-2a3 3 0 0 1 3-3h2v-2l-.6-.2A5 5 0 0 1 12 2z" /><path d="M9 18v3M15 18v3" /></>),
   lab: svg(<><path d="M9 3h6M10 3v6.5L4.5 19a1.5 1.5 0 0 0 1.3 2.2h12.4a1.5 1.5 0 0 0 1.3-2.2L14 9.5V3" /><path d="M7.5 15h9" /></>),
 };
 
-// Old paths (#/intelligence, #/chaos, ...) still land on the page that replaced them.
+// Routing mapping
 const SECTION: Record<string, string> = { '': 'overview', overview: 'overview', station: 'overview', network: 'overview',
-  decisions: 'decisions', intelligence: 'decisions', recommendation: 'decisions',
+  decisions: 'decisions', intelligence: 'intelligence', rl: 'intelligence', recommendation: 'decisions',
   lab: 'lab', chaos: 'lab', crises: 'lab', health: 'health', architecture: 'architecture', history: 'history' };
 
 export function App() {
@@ -44,6 +46,7 @@ export function App() {
   let body: ReactNode;
   switch (section === 'overview' ? page : section) {
     case 'decisions': body = <DecisionCenter />; break;
+    case 'intelligence': body = <RLIntelligenceScreen />; break;
     case 'lab': body = <ScenarioLab />; break;
     case 'health': body = <SystemHealth />; break;
     case 'architecture': body = <Architecture />; break;
@@ -61,6 +64,7 @@ export function App() {
         <nav className="nav" aria-label="Main">
           {nav('overview', '#/', 'Overview', I.overview)}
           {nav('decisions', '#/decisions', 'Decision Center', I.decision, needsReview)}
+          {nav('intelligence', '#/intelligence', 'RL & RAG Center', I.intelligence)}
           {nav('lab', '#/lab', 'Scenario Lab', I.lab, !!scenario && !scenario.error)}
           <div className="nav-tech">
             <span className="kicker">Technical details</span>

@@ -18,6 +18,8 @@ const FALLBACK: Record<string, string> = {
   'Decision engine': 'If it fails: greedy fallback policy; confidence drops.',
   Explanation: 'If the LLM fails: deterministic template explanations.',
   Forecaster: 'If it fails: in-process profile predictor.',
+  'RL Predictor': 'If RL fails or is clipped: automated fallback to LP optimizer or Greedy baseline.',
+  'RAG Pipeline': 'If vector store fails: fallback to local keyword search & deterministic rule templates.',
 };
 const CRITICAL = ['Backend API', 'Simulator', 'Operational state', 'Decision engine'];
 

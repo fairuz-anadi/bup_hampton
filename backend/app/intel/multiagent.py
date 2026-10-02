@@ -229,7 +229,7 @@ class AdversarialCriticAgent:
         model: str = "meta-llama/Llama-3.1-8B-Instruct",
         timeout: float = 3.0,
     ):
-        self.api_key = api_key or os.getenv("HUGGINGFACE_API_KEY", "") or os.getenv("HF_TOKEN", "")
+        self.api_key = api_key if api_key is not None else (os.getenv("HUGGINGFACE_API_KEY", "") or os.getenv("HF_TOKEN", ""))
         self.model = model or os.getenv("HF_MODEL", "meta-llama/Llama-3.1-8B-Instruct")
         self.timeout = timeout
         self.router_url = "https://router.huggingface.co/v1/chat/completions"
@@ -340,7 +340,7 @@ class ExecutiveCoordinatorAgent:
         model: str = "gpt-4o-mini",
         timeout: float = 3.0,
     ):
-        self.api_key = api_key or os.getenv("OPENAI_API_KEY", "")
+        self.api_key = api_key if api_key is not None else os.getenv("OPENAI_API_KEY", "")
         self.model = model or os.getenv("COPILOT_MODEL", "gpt-4o-mini")
         self.timeout = timeout
 

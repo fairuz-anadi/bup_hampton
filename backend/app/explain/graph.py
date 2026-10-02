@@ -80,6 +80,16 @@ def node_extract_facts(state: CopilotState) -> dict:
 
 def node_match_playbook(state: CopilotState) -> dict:
     picked = list(dict.fromkeys(PLAYBOOKS[k] for k in _kinds(state["facts"]) if k in PLAYBOOKS))
+    try:
+        from app.rag.pipeline import get_rag_pipeline
+        rag = get_rag_pipeline()
+        kinds = _kinds(state["facts"])
+        query = f"policy constraints {' '.join(kinds[:2])}" if kinds else "depot reserve policy"
+        rag_hits = rag.search(query=query, category="rules_policies", top_k=1)
+        if rag_hits:
+            picked.append(f"Grounded Policy [{rag_hits[0].source}]: {rag_hits[0].content[:150].strip()}...")
+    except Exception:
+        pass
     return {"playbook": " ".join(picked) or "Normal operations: keep headroom, prefer fast routes."}
 
 

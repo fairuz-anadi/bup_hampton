@@ -1,0 +1,40 @@
+{
+  "scenarios": [
+    {
+      "id": "scenario_normal_ops",
+      "name": "Standard Equilibrium Operations",
+      "ticks": 96,
+      "disruptions": [],
+      "description": "Baseline 24-hour demand cycle with all corridors open and normal reserve margins."
+    },
+    {
+      "id": "scenario_route_disruption",
+      "name": "Arterial Highway Disruption",
+      "ticks": 96,
+      "disruptions": [
+        {
+          "type": "route_disruption",
+          "route_id": "Route_1",
+          "start_tick": 20,
+          "duration": 30
+        }
+      ],
+      "description": "Critical route Gazipur -> Tongi closed, forcing backup routing to secondary links."
+    },
+    {
+      "id": "scenario_demand_spike",
+      "name": "Metropolitan Demand Surge",
+      "ticks": 96,
+      "disruptions": [
+        {
+          "type": "demand_spike",
+          "station_id": "Airport",
+          "multiplier": 2.2,
+          "start_tick": 15,
+          "duration": 25
+        }
+      ],
+      "description": "Sudden 120% demand spike at Airport station testing rapid replenishment without depot depletion."
+    }
+  ]
+}

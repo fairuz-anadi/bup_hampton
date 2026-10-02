@@ -174,7 +174,8 @@ Never dispatch fuel over a route with status DISRUPTED.
 Failed dispatches will not refund depot inventory.
 """, encoding="utf-8")
 
-    pipeline = RAGPipeline(data_dir=rag_dir)
+    store = RAGStore(dsn=None, buffer_path=tmp_path / "test_store.jsonl")
+    pipeline = RAGPipeline(data_dir=rag_dir, store=store)
     res = pipeline.ingest(data_dir=rag_dir, force=True)
     assert res["status"] == "success"
     assert res["documents_indexed"] == 1

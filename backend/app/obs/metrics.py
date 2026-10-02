@@ -33,6 +33,17 @@ INTEL_LATENCY = Histogram("fuelguard_intel_run_seconds", "Decision engine run ti
                           buckets=(.005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5))
 PACER_RUNNING = Gauge("fuelguard_pacer_running", "1 while the backend pacer is stepping the simulator")
 
+# Reinforcement Learning & Policy Metrics
+RL_INFERENCE_LATENCY = Histogram("fuelguard_rl_inference_duration_seconds", "RL policy inference latency",
+                                 buckets=(.001, .005, .01, .025, .05, .1, .25, .5, 1))
+RL_RECOMMENDATIONS = Counter("fuelguard_rl_recommendations_total", "RL policy recommendations by status",
+                             ["status"])
+RL_REWARD = Gauge("fuelguard_rl_step_reward", "Recent reward calculated for RL policy step")
+RL_CUMULATIVE_REWARD = Gauge("fuelguard_rl_cumulative_reward", "Cumulative reward of RL agent")
+RL_STOCKOUT_RATE = Gauge("fuelguard_rl_stockout_rate", "Observed stockout rate under RL policy")
+RL_TRANSPORT_COST = Gauge("fuelguard_rl_transport_cost", "Transportation cost under RL policy")
+RL_DEMAND_SATISFACTION = Gauge("fuelguard_rl_demand_satisfaction", "Demand satisfaction ratio under RL policy")
+
 
 def endpoint_label(path: str) -> str:
     """Collapse ids so label cardinality stays small: /v1/stations/station-mirpur -> /v1/stations/{id}."""
